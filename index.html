@@ -1,0 +1,1538 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>One Day on Rails — Sweden</title>
+<meta name="description" content="Every scheduled train over one day across Sweden, animated from real timetables.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-bot: #0a1018;
+    --bg-top: #05080e;
+    --ink: #e9eff7;
+    --ink-2: #a7b3c4;
+    --ink-3: #78859a;
+    --rule: rgba(39, 51, 63, 0.7);
+    --panel: rgba(13, 20, 30, 0.82);
+    --land: #121a26;
+    --land-line: #1d2735;
+    --land-edge: #35435a;
+    --water: #0a1018;
+    --city-fill: rgba(70, 88, 111, 0.18);
+    --city-line: rgba(90, 115, 145, 0.35);
+    --track-rgb: 100, 175, 255;
+    --station: #2b3849;
+    --hub: #46586f;
+    --highspeed: #5aa9ff;
+    --intercity: #ff7a45;
+    --regional: #35d69a;
+    --night: #ffd93d;
+    --foreign: #8a99ad;
+  }
+
+  [data-theme="light"] {
+    --bg-bot: #edf2f8;
+    --bg-top: #e2eaf3;
+    --ink: #121b27;
+    --ink-2: #38485e;
+    --ink-3: #637791;
+    --rule: rgba(180, 195, 212, 0.8);
+    --panel: rgba(255, 255, 255, 0.88);
+    --land: #dbe4ef;
+    --land-line: #c4d2e3;
+    --land-edge: #9cb2cb;
+    --water: #edf2f8;
+    --city-fill: rgba(140, 160, 185, 0.30);
+    --city-line: rgba(110, 135, 165, 0.50);
+    --track-rgb: 0, 98, 204;
+    --station: #9db1ca;
+    --hub: #6a829e;
+    --highspeed: #0066d6;
+    --intercity: #d84500;
+    --regional: #028e5a;
+    --night: #b87b00;
+    --foreign: #6e7f95;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg-bot);
+    color: var(--ink);
+    font-family: "IBM Plex Sans", system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+    font-weight: 300;
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+    transition: background 0.2s ease, color 0.2s ease;
+  }
+
+  #stage {
+    position: fixed; inset: 0; overflow: hidden;
+    cursor: grab;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  #stage.dragging { cursor: grabbing; }
+
+  #map { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  #dock { display: contents; }
+
+  /* Top-left stack: Network badge + Day pills + Meta card + Dynamic Mini Clock */
+  #top-bar {
+    position: fixed; z-index: 6; left: 18px; top: 18px;
+    display: flex; flex-direction: column; gap: 8px;
+    pointer-events: none;
+  }
+  #top-bar > * {
+    pointer-events: auto;
+  }
+  #nets {
+    display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px;
+    width: fit-content;
+  }
+  #nets .badge {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.76rem; font-weight: 600;
+    color: var(--ink); letter-spacing: 0.08em;
+  }
+  #nets .sub {
+    font-size: 0.72rem; color: var(--ink-3); border-left: 1px solid var(--rule);
+    padding-left: 8px; margin-left: 2px;
+  }
+
+  /* Day of week switcher */
+  #days {
+    display: inline-flex; gap: 3px; padding: 3px;
+    width: fit-content;
+  }
+  #days button {
+    padding: 4px 9px; font-size: 0.72rem; font-family: "IBM Plex Mono", monospace;
+    border: 1px solid transparent; color: var(--ink-3); border-radius: 5px;
+  }
+  #days button:hover { color: var(--ink); background: rgba(128, 128, 128, 0.12); }
+  #days button[aria-pressed="true"] {
+    color: var(--ink); border-color: var(--rule); background: rgba(128, 128, 128, 0.18);
+    font-weight: 500;
+  }
+
+  #meta {
+    max-width: 270px;
+    font-size: 0.68rem; line-height: 1.5; color: var(--ink-3);
+    padding: 9px 12px;
+  }
+  #meta strong { color: var(--ink-2); font-weight: 500; }
+
+  #mini-clock {
+    padding: 8px 12px; width: fit-content; min-width: 140px;
+    display: none;
+    transition: opacity 0.2s ease;
+  }
+  #mini-clock[data-visible="true"] { display: block; }
+  #mini-clock .mc-time {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 1.35rem; font-weight: 300; line-height: 1;
+    color: var(--ink); font-variant-numeric: tabular-nums;
+  }
+  #mini-clock .mc-time .mins { opacity: 0.6; }
+  #mini-clock .mc-running {
+    margin-top: 4px; font-size: 0.68rem; letter-spacing: 0.04em;
+    color: var(--ink-3); font-family: "IBM Plex Mono", monospace;
+  }
+
+  #figures {
+    position: fixed; z-index: 3; right: 20px; top: 60px;
+    padding: 14px 16px; min-width: 300px; max-width: 360px; display: none;
+  }
+  #figures[data-open="true"] { display: block; }
+  table { border-collapse: collapse; width: 100%; font-size: 0.78rem; }
+  th, td { text-align: right; padding: 4px 0 4px 12px; white-space: nowrap; }
+  th:first-child, td:first-child { text-align: left; padding-left: 0; }
+  thead th {
+    font-size: 0.62rem; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--ink-3); font-weight: 500; border-bottom: 1px solid var(--rule);
+  }
+  tbody td { font-family: "IBM Plex Mono", monospace; font-variant-numeric: tabular-nums; color: var(--ink-2); }
+  tbody td:first-child { font-family: inherit; color: var(--ink); }
+  tbody tr:last-child td { border-top: 1px solid var(--rule); padding-top: 7px; font-weight: 500; }
+  #figures p { margin-top: 11px; font-size: 0.66rem; line-height: 1.5; color: var(--ink-3); }
+
+  #tooltip {
+    position: fixed; z-index: 5; pointer-events: none; opacity: 0;
+    transform: translate(-50%, -140%);
+    background: var(--panel); border: 1px solid var(--rule); border-radius: 7px;
+    padding: 8px 12px; font-size: 0.76rem; white-space: nowrap;
+    backdrop-filter: blur(9px); -webkit-backdrop-filter: blur(9px);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
+    transition: opacity 0.12s;
+  }
+  #tooltip[data-on="true"] { opacity: 1; }
+  #tooltip .tn { font-weight: 600; color: var(--ink); font-size: 0.82rem; }
+  #tooltip .route {
+    color: var(--highspeed); font-size: 0.75rem; font-weight: 500;
+    margin: 3px 0 2px; font-family: "IBM Plex Mono", monospace;
+  }
+  #tooltip .th { color: var(--ink-2); font-size: 0.72rem; }
+  #tooltip .op { color: var(--ink-3); font-size: 0.70rem; margin-top: 1px; }
+
+  #hint { display: none; }
+  #loading {
+    position: fixed; inset: 0; z-index: 9; display: grid; place-items: center;
+    background: var(--bg-bot); font-size: 0.82rem; color: var(--ink-3);
+    letter-spacing: 0.12em; text-transform: uppercase;
+    font-family: "IBM Plex Mono", monospace;
+    transition: opacity 0.3s ease;
+  }
+  #loading[hidden] { opacity: 0; pointer-events: none; }
+
+  @media (max-width: 820px) {
+    body { overflow: auto; overflow-x: hidden; }
+    #stage { position: relative; inset: auto; width: 100%; height: 100svh; }
+    #meta { display: none; }
+    #top-bar { position: absolute; }
+    #zoom-controls { bottom: 100px; right: 14px; }
+    #settings-modal { right: 54px; bottom: 100px; width: 250px; }
+    #dock {
+      display: flex; flex-direction: column; gap: 12px;
+      padding: 12px 12px 20px;
+    }
+    #legend, #controls, #figures { position: static; z-index: auto; max-width: none; min-width: 0; }
+    #figures { display: block; }
+    #controls { flex-wrap: wrap; justify-content: space-between; padding: 12px 14px; }
+    #profile { flex: 1 1 140px; width: auto; min-width: 0; }
+    #hint {
+      display: block; position: absolute; left: 0; right: 0; bottom: 10px; z-index: 3;
+      text-align: center; font-size: 0.64rem; letter-spacing: 0.14em;
+      text-transform: uppercase; color: var(--ink-3); pointer-events: none;
+    }
+    #hint span { display: block; font-size: 0.9rem; line-height: 1; margin-top: 2px; }
+  }
+</style>
+</head>
+<body>
+
+<div id="stage">
+  <canvas id="map"></canvas>
+  
+  <header id="clock-hdr">
+    <div id="clock"><span class="hrs">--</span><span class="mins">:--</span></div>
+    <div id="running">&nbsp;</div>
+    <div id="tracking-badge" title="Click to stop tracking">● Tracking Train <span></span> ✕</div>
+  </header>
+
+  <div id="top-bar">
+    <div id="nets" class="panel">
+      <span class="badge">SWEDEN</span>
+      <span class="sub" id="net-sub">Wed 2026-09-02</span>
+    </div>
+    <nav id="days" class="panel" role="group" aria-label="Day of week">
+      <button data-day="mon">Mon</button>
+      <button data-day="tue">Tue</button>
+      <button data-day="wed" aria-pressed="true">Wed</button>
+      <button data-day="thu">Thu</button>
+      <button data-day="fri">Fri</button>
+      <button data-day="sat">Sat</button>
+      <button data-day="sun">Sun</button>
+    </nav>
+    <div id="meta" class="panel"></div>
+    <div id="mini-clock" class="panel" data-visible="false">
+      <div class="mc-time"><span class="hrs">--</span><span class="mins">:--</span></div>
+      <div class="mc-running">&nbsp;</div>
+    </div>
+  </div>
+
+  <div id="top-right">
+    <button id="theme-toggle" class="panel" aria-label="Toggle theme">
+      <span id="theme-label">Light</span>
+    </button>
+    <button id="figbtn" class="panel" aria-expanded="false" aria-controls="figures">Figures</button>
+  </div>
+
+  <div id="zoom-controls" class="panel" role="group" aria-label="Zoom and settings">
+    <button id="zoom-in" title="Zoom in">+</button>
+    <button id="zoom-out" title="Zoom out">&minus;</button>
+    <button id="zoom-reset" class="reset-btn" title="Reset view">1:1</button>
+    <button id="settings-btn" title="Display settings" aria-label="Display settings">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/>
+        <circle cx="12" cy="12" r="3"/>
+      </svg>
+    </button>
+  </div>
+
+  <div id="settings-modal" class="panel" data-open="false">
+    <div class="modal-hdr">
+      <h2>Display Settings</h2>
+      <button id="settings-close" aria-label="Close settings">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="setting-row">
+        <label for="track-opacity">Railway tracks opacity</label>
+        <div class="ctl-wrap">
+          <input id="track-opacity" type="range" min="0" max="100" step="5" value="12">
+          <span id="track-val" class="val-lbl">12%</span>
+        </div>
+      </div>
+      <div class="setting-row">
+        <label for="train-size">Train dot size</label>
+        <div class="ctl-wrap">
+          <input id="train-size" type="range" min="60" max="180" step="10" value="100">
+          <span id="size-val" class="val-lbl">1.0&times;</span>
+        </div>
+      </div>
+      <div class="setting-row">
+        <label for="trail-length">Train trail length</label>
+        <div class="ctl-wrap">
+          <input id="trail-length" type="range" min="40" max="200" step="10" value="100">
+          <span id="trail-val" class="val-lbl">1.0&times;</span>
+        </div>
+      </div>
+      <div class="setting-row">
+        <label for="toggle-cities">City labels & stations</label>
+        <input id="toggle-cities" type="checkbox" checked>
+      </div>
+      <div class="setting-row">
+        <label for="toggle-footprints">Dense city footprints</label>
+        <input id="toggle-footprints" type="checkbox" checked>
+      </div>
+    </div>
+  </div>
+
+  <div id="hint">Scroll for legend and controls<span>&#8964;</span></div>
+</div>
+
+<div id="dock">
+  <div id="legend" class="panel">
+    <h2>Train category</h2>
+    <div id="legend-rows"></div>
+    <footer id="legend-note">Urban transit (Metro, Tram, Bus) is excluded. Foreign segments are shown in grey.</footer>
+  </div>
+
+  <aside id="figures" class="panel" aria-label="Trains by category"></aside>
+
+  <div id="controls" class="panel">
+    <button id="play" aria-pressed="true">Pause</button>
+    <div id="profile">
+      <canvas id="profcv"></canvas>
+      <input id="scrub" type="range" min="0" max="86399" step="30" value="28800"
+             aria-label="Time of day. The strip behind shows how many services are running each hour.">
+    </div>
+    <div class="spd" role="group" aria-label="Playback speed">
+      <button data-mps="120" aria-pressed="true">1&times;</button>
+      <button data-mps="240">2&times;</button>
+      <button data-mps="480">4&times;</button>
+      <button data-mps="960">8&times;</button>
+    </div>
+  </div>
+</div>
+
+<div id="tooltip">
+  <div class="tn"></div>
+  <div class="route"></div>
+  <div class="th"></div>
+  <div class="op"></div>
+</div>
+
+<div id="loading">Loading Sweden timetable...</div>
+
+<script>
+(() => {
+"use strict";
+
+let currentTheme = localStorage.getItem("rail_theme") || "dark";
+document.documentElement.setAttribute("data-theme", currentTheme);
+
+const userSettings = {
+  trackOpacity: 12,
+  trainScale: 1.0,
+  trailScale: 1.0,
+  showCities: true,
+  showFootprints: true
+};
+
+try {
+  const saved = JSON.parse(localStorage.getItem("rail_settings") || "{}");
+  Object.assign(userSettings, saved);
+} catch(e) {}
+
+const PALETTES = {
+  dark: {
+    bgTop: "#05080e", bgBot: "#0a1018",
+    land: "#121a26", landLine: "#1d2735", landEdge: "#35435a",
+    water: "#0a1018",
+    cityFill: "rgba(70, 88, 111, 0.16)", cityLine: "rgba(90, 115, 145, 0.32)",
+    trackBase: [100, 175, 255],
+    ink: "#e9eff7", ink2: "#a7b3c4", ink3: "#78859a",
+    station: "#2b3849", hub: "#46586f",
+    highspeed: "#5aa9ff", intercity: "#ff7a45", regional: "#35d69a", night: "#ffd93d",
+    foreign: "#8a99ad"
+  },
+  light: {
+    bgTop: "#e2eaf3", bgBot: "#edf2f8",
+    land: "#dbe4ef", landLine: "#c4d2e3", landEdge: "#9cb2cb",
+    water: "#edf2f8",
+    cityFill: "rgba(140, 160, 185, 0.28)", cityLine: "rgba(110, 135, 165, 0.48)",
+    trackBase: [0, 98, 204],
+    ink: "#121b27", ink2: "#38485e", ink3: "#637791",
+    station: "#9db1ca", hub: "#6a829e",
+    highspeed: "#0066d6", intercity: "#d84500", regional: "#028e5a", night: "#b87b00",
+    foreign: "#6e7f95"
+  }
+};
+
+const hex2rgb = h => {
+  if (Array.isArray(h)) return h;
+  if (typeof h !== "string" || h.startsWith("rgba") || h.startsWith("rgb")) return [128, 128, 128];
+  return [parseInt(h.slice(1,3),16), parseInt(h.slice(3,5),16), parseInt(h.slice(5,7),16)];
+};
+
+function getPalette() {
+  const p = PALETTES[currentTheme];
+  const rgb = {};
+  for (const k in p) rgb[k] = hex2rgb(p[k]);
+  return { hex: p, rgb };
+}
+
+let PAL = getPalette();
+
+const css = c => `rgb(${c[0]},${c[1]},${c[2]})`;
+const rgba = (c,a) => `rgba(${c[0]},${c[1]},${c[2]},${a})`;
+
+const DAY_SECONDS = 86400;
+
+// Geographic boundary check for Norwegian / Danish track segments
+function isOutsideSweden(lon, lat) {
+  if (lon < 12.80 && lat < 55.85) return true;
+  if (lon < 12.10 && lat > 58.90 && lat < 61.50) return true;
+  if (lon < 12.05 && lat >= 61.50 && lat < 65.00) return true;
+  if (lon < 18.05 && lat > 68.30) return true;
+  return false;
+}
+
+const CONFIG = {
+  classes: {
+    highspeed: { label: "SJ Snabbtåg (X2000 / SJ 3000)", role: "highspeed", size: 0.55, trailSecs: 600, ring: 1.0 },
+    intercity: { label: "InterCity / Øresundståg", role: "intercity", size: 0.48, trailSecs: 500, ring: 0.8 },
+    regional:  { label: "Regional / Pågatågen / Mälartåg", role: "regional", size: 0.35, trailSecs: 350, ring: 0.2 },
+    night:     { label: "SJ / Vy Nattåg (Overnight)", role: "night", size: 0.50, trailSecs: 700, ring: 1.0 }
+  },
+  bounds: {
+    lon0: 10.4, lon1: 24.4,
+    lat0: 55.2, lat1: 69.2
+  },
+  clockPos: { lat: 67.4, lon: 17.5 },
+  cities: [
+    // --- TIER 1: Major Metropolitan Centers (Always visible at zoom >= 1.0) ---
+    ["Stockholm", 59.330, 18.058, 1],
+    ["Göteborg", 57.708, 11.973, 1],
+    ["Malmö", 55.609, 13.000, 1],
+    ["Uppsala", 59.858, 17.646, 1],
+    ["Linköping", 58.416, 15.626, 1],
+    ["Norrköping", 58.596, 16.183, 1],
+    ["Örebro", 59.278, 15.212, 1],
+    ["Västerås", 59.607, 16.552, 1],
+    ["Jönköping", 57.784, 14.163, 1],
+    ["Helsingborg", 56.046, 12.705, 1],
+    ["Lund", 55.707, 13.187, 1],
+    ["Karlstad", 59.378, 13.499, 1],
+    ["Gävle", 60.676, 17.151, 1],
+    ["Sundsvall", 62.387, 17.315, 1],
+    ["Östersund", 63.172, 14.636, 1],
+    ["Umeå", 63.829, 20.266, 1],
+    ["Luleå", 65.584, 22.165, 1],
+    ["Kiruna", 67.869, 20.222, 1],
+    ["Visby", 57.635, 18.298, 1],
+
+    // --- TIER 2: Regional Hubs & Major Junctions (Visible at zoom > 1.6) ---
+    ["Borås", 57.720, 12.936, 2],
+    ["Halmstad", 56.670, 12.865, 2],
+    ["Eskilstuna", 59.371, 16.508, 2],
+    ["Södertälje", 59.196, 17.628, 2],
+    ["Skövde", 58.390, 13.855, 2],
+    ["Herrljunga", 58.077, 13.024, 2],
+    ["Katrineholm", 58.996, 16.208, 2],
+    ["Nässjö", 57.653, 14.697, 2],
+    ["Alvesta", 56.899, 14.556, 2],
+    ["Hässleholm", 56.158, 13.764, 2],
+    ["Kristianstad", 56.033, 14.159, 2],
+    ["Karlskrona", 56.166, 15.586, 2],
+    ["Kalmar", 56.662, 16.358, 2],
+    ["Växjö", 56.877, 14.807, 2],
+    ["Trollhättan", 58.284, 12.296, 2],
+    ["Uddevalla", 58.353, 11.937, 2],
+    ["Varberg", 57.111, 12.249, 2],
+    ["Kungsbacka", 57.487, 12.079, 2],
+    ["Falkenberg", 56.913, 12.511, 2],
+    ["Ystad", 55.430, 13.826, 2],
+    ["Trelleborg", 55.375, 13.158, 2],
+    ["Landskrona", 55.867, 12.860, 2],
+    ["Ängelholm", 56.248, 12.860, 2],
+    ["Mjölby", 58.324, 15.127, 2],
+    ["Motala", 58.537, 15.036, 2],
+    ["Falun", 60.603, 15.636, 2],
+    ["Borlänge", 60.485, 15.432, 2],
+    ["Mora", 61.004, 14.537, 2],
+    ["Hudiksvall", 61.725, 17.108, 2],
+    ["Söderhamn", 61.304, 17.060, 2],
+    ["Härnösand", 62.632, 17.938, 2],
+    ["Örnsköldsvik", 63.291, 18.718, 2],
+    ["Skellefteå", 64.750, 20.954, 2],
+    ["Piteå", 65.317, 21.480, 2],
+    ["Boden", 65.825, 21.688, 2],
+    ["Gällivare", 67.133, 20.660, 2],
+    ["Åre", 63.399, 13.076, 2],
+    ["Abisko", 68.349, 18.831, 2],
+    ["Riksgränsen", 68.430, 18.121, 2],
+
+    // --- TIER 3: Terminal, Branch & Secondary Stations (Deep Zoom > 3.2) ---
+    ["Hallsberg", 59.066, 15.111, 3],
+    ["Laxå", 58.987, 14.618, 3],
+    ["Kil", 59.505, 13.315, 3],
+    ["Kristinehamn", 59.309, 14.108, 3],
+    ["Arvika", 59.654, 12.592, 3],
+    ["Charlottenberg", 59.883, 12.296, 3],
+    ["Degerfors", 59.237, 14.432, 3],
+    ["Fagersta", 59.992, 15.811, 3],
+    ["Ludvika", 60.149, 15.187, 3],
+    ["Avesta Krylbo", 60.130, 16.220, 3],
+    ["Sala", 59.923, 16.604, 3],
+    ["Enköping", 59.641, 17.082, 3],
+    ["Bålsta", 59.569, 17.531, 3],
+    ["Märsta", 59.620, 17.861, 3],
+    ["Arlanda", 59.649, 17.929, 3],
+    ["Knivsta", 59.726, 17.788, 3],
+    ["Tierp", 60.344, 17.514, 3],
+    ["Sandviken", 60.620, 16.776, 3],
+    ["Ljusdal", 61.829, 16.096, 3],
+    ["Bollnäs", 61.348, 16.393, 3],
+    ["Ånge", 62.525, 15.658, 3],
+    ["Bräcke", 62.751, 15.424, 3],
+    ["Storlien", 63.316, 12.101, 3],
+    ["Krokom", 63.326, 14.455, 3],
+    ["Vännäs", 63.908, 19.754, 3],
+    ["Bastuträsk", 64.790, 20.038, 3],
+    ["Älvsbyn", 65.674, 20.963, 3],
+    ["Kalix", 65.854, 23.143, 3],
+    ["Haparanda", 65.834, 24.135, 3],
+    ["Strömstad", 58.938, 11.173, 3],
+    ["Munkedal", 58.473, 11.688, 3],
+    ["Stenungsund", 58.070, 11.821, 3],
+    ["Alingsås", 57.929, 12.533, 3],
+    ["Vårgårda", 58.034, 12.810, 3],
+    ["Falköping", 58.172, 13.557, 3],
+    ["Töreboda", 58.706, 14.129, 3],
+    ["Mariestad", 58.710, 13.824, 3],
+    ["Lidköping", 58.503, 13.161, 3],
+    ["Vara", 58.261, 12.955, 3],
+    ["Tranås", 58.037, 14.978, 3],
+    ["Boxholm", 58.196, 15.053, 3],
+    ["Nyköping", 58.756, 17.004, 3],
+    ["Flen", 59.058, 16.589, 3],
+    ["Gnesta", 59.048, 17.311, 3],
+    ["Järna", 59.090, 17.568, 3],
+    ["Strängnäs", 59.375, 17.031, 3],
+    ["Kungsör", 59.421, 16.096, 3],
+    ["Arboga", 59.394, 15.839, 3],
+    ["Köping", 59.510, 15.998, 3],
+    ["Sunne", 59.837, 13.143, 3],
+    ["Torsby", 60.137, 13.007, 3],
+    ["Filipstad", 59.712, 14.170, 3],
+    ["Hultsfred", 57.491, 15.842, 3],
+    ["Vimmerby", 57.665, 15.856, 3],
+    ["Eksjö", 57.668, 14.972, 3],
+    ["Sävsjö", 57.401, 14.664, 3],
+    ["Vetlanda", 57.427, 15.086, 3],
+    ["Oskarshamn", 57.265, 16.452, 3],
+    ["Nybro", 56.744, 15.908, 3],
+    ["Emmaboda", 56.631, 15.541, 3],
+    ["Ronneby", 56.208, 15.281, 3],
+    ["Karlshamn", 56.173, 14.862, 3],
+    ["Sölvesborg", 56.052, 14.586, 3],
+    ["Bromölla", 56.074, 14.478, 3],
+    ["Osby", 56.380, 13.996, 3],
+    ["Älmhult", 56.551, 14.138, 3],
+    ["Markaryd", 56.460, 13.595, 3],
+    ["Åstorp", 56.134, 12.946, 3],
+    ["Klippan", 56.133, 13.131, 3],
+    ["Perstorp", 56.137, 13.393, 3],
+    ["Kävlinge", 55.792, 13.109, 3],
+    ["Lomma", 55.674, 13.064, 3],
+    ["Svedala", 55.508, 13.238, 3],
+    ["Skurup", 55.480, 13.498, 3],
+    ["Simrishamn", 55.556, 14.352, 3],
+    ["Tomelilla", 55.547, 13.953, 3],
+    ["Eslöv", 55.838, 13.303, 3],
+    ["Höör", 55.932, 13.543, 3],
+    ["Båstad", 56.425, 12.876, 3],
+    ["Laholm", 56.516, 13.045, 3],
+    ["Leksand", 60.731, 14.998, 3],
+    ["Rättvik", 60.884, 15.116, 3],
+    ["Orsa", 61.120, 14.618, 3]
+  ]
+};
+
+// DOM references
+const stage = document.getElementById("stage");
+const mapCanvas = document.getElementById("map");
+const mapCtx = mapCanvas.getContext("2d");
+const profCanvas = document.getElementById("profcv");
+const profCtx = profCanvas.getContext("2d");
+
+const clockHdr = document.getElementById("clock-hdr");
+const clockEl = document.getElementById("clock");
+const runningEl = document.getElementById("running");
+const miniClockEl = document.getElementById("mini-clock");
+const miniClockTime = miniClockEl ? miniClockEl.querySelector(".mc-time") : null;
+const miniClockRunning = miniClockEl ? miniClockEl.querySelector(".mc-running") : null;
+const trackingBadge = document.getElementById("tracking-badge");
+const netSub = document.getElementById("net-sub");
+const dayBtns = document.querySelectorAll("#days button[data-day]");
+const themeToggle = document.getElementById("theme-toggle");
+const themeLabel = document.getElementById("theme-label");
+const legendRows = document.getElementById("legend-rows");
+const metaEl = document.getElementById("meta");
+const figuresEl = document.getElementById("figures");
+const figBtn = document.getElementById("figbtn");
+const playBtn = document.getElementById("play");
+const scrub = document.getElementById("scrub");
+const spdBtns = document.querySelectorAll(".spd button[data-mps]");
+const tooltip = document.getElementById("tooltip");
+const loadingEl = document.getElementById("loading");
+
+const zoomControls = document.getElementById("zoom-controls");
+const zoomInBtn = document.getElementById("zoom-in");
+const zoomOutBtn = document.getElementById("zoom-out");
+const zoomResetBtn = document.getElementById("zoom-reset");
+const settingsBtn = document.getElementById("settings-btn");
+const settingsModal = document.getElementById("settings-modal");
+const settingsClose = document.getElementById("settings-close");
+
+const controlsPanel = document.getElementById("controls");
+const topBar = document.getElementById("top-bar");
+const legendPanel = document.getElementById("legend");
+
+const trackOpacityInput = document.getElementById("track-opacity");
+const trackValLbl = document.getElementById("track-val");
+const trainSizeInput = document.getElementById("train-size");
+const sizeValLbl = document.getElementById("size-val");
+const trailLengthInput = document.getElementById("trail-length");
+const trailValLbl = document.getElementById("trail-val");
+const toggleCities = document.getElementById("toggle-cities");
+const toggleFootprints = document.getElementById("toggle-footprints");
+
+let trainData = null;
+let geoData = null;
+let currentDay = "wed";
+let dayCache = {};
+let isPlaying = true;
+let simSeconds = 28800; // start at 08:00
+let speedMultiplier = 120; // 1x = 2 min/sec
+let lastFrameTime = performance.now();
+let hourlyHistogram = new Array(24).fill(0);
+
+// Active hovered or locked tracking train
+let hoveredTrip = null;
+let trackedTrip = null;
+
+// Interactive Viewport Transform (Pan & Zoom)
+let view = {
+  zoom: 1.0,
+  minZoom: 0.8,
+  maxZoom: 16.0,
+  panX: 0,
+  panY: 0,
+  isDragging: false,
+  dragStartX: 0,
+  dragStartY: 0,
+  initialPanX: 0,
+  initialPanY: 0,
+  lastPinchDist: 0
+};
+
+// Base geographic projection
+let proj = {
+  scaleX: 1,
+  scaleY: 1,
+  offsetX: 0,
+  offsetY: 0,
+  width: 0,
+  height: 0
+};
+
+// Stop Drag/Zoom Bubbling on UI panels & inputs
+[settingsModal, zoomControls, controlsPanel, topBar, legendPanel, figuresEl].forEach(panel => {
+  if (!panel) return;
+  panel.addEventListener("mousedown", (e) => e.stopPropagation());
+  panel.addEventListener("touchstart", (e) => e.stopPropagation(), { passive: true });
+  panel.addEventListener("touchmove", (e) => e.stopPropagation(), { passive: true });
+  panel.addEventListener("wheel", (e) => e.stopPropagation(), { passive: true });
+});
+
+function updateThemeButton() {
+  themeLabel.textContent = currentTheme === "dark" ? "Light" : "Dark";
+}
+updateThemeButton();
+
+themeToggle.addEventListener("click", () => {
+  currentTheme = currentTheme === "dark" ? "light" : "dark";
+  document.documentElement.setAttribute("data-theme", currentTheme);
+  localStorage.setItem("rail_theme", currentTheme);
+  PAL = getPalette();
+  updateThemeButton();
+  initUI();
+});
+
+// Settings UI Controls
+function initSettingsUI() {
+  trackOpacityInput.value = userSettings.trackOpacity;
+  trackValLbl.textContent = `${userSettings.trackOpacity}%`;
+  
+  trainSizeInput.value = Math.round(userSettings.trainScale * 100);
+  sizeValLbl.textContent = `${userSettings.trainScale.toFixed(1)}×`;
+
+  trailLengthInput.value = Math.round(userSettings.trailScale * 100);
+  trailValLbl.textContent = `${userSettings.trailScale.toFixed(1)}×`;
+
+  toggleCities.checked = userSettings.showCities;
+  toggleFootprints.checked = userSettings.showFootprints;
+}
+initSettingsUI();
+
+function saveSettings() {
+  localStorage.setItem("rail_settings", JSON.stringify(userSettings));
+}
+
+settingsBtn.addEventListener("click", () => {
+  const isOpen = settingsModal.getAttribute("data-open") === "true";
+  settingsModal.setAttribute("data-open", isOpen ? "false" : "true");
+});
+
+settingsClose.addEventListener("click", () => {
+  settingsModal.setAttribute("data-open", "false");
+});
+
+trackOpacityInput.addEventListener("input", (e) => {
+  userSettings.trackOpacity = parseInt(e.target.value, 10);
+  trackValLbl.textContent = `${userSettings.trackOpacity}%`;
+  saveSettings();
+});
+
+trainSizeInput.addEventListener("input", (e) => {
+  userSettings.trainScale = parseInt(e.target.value, 10) / 100;
+  sizeValLbl.textContent = `${userSettings.trainScale.toFixed(1)}×`;
+  saveSettings();
+});
+
+trailLengthInput.addEventListener("input", (e) => {
+  userSettings.trailScale = parseInt(e.target.value, 10) / 100;
+  trailValLbl.textContent = `${userSettings.trailScale.toFixed(1)}×`;
+  saveSettings();
+});
+
+toggleCities.addEventListener("change", (e) => {
+  userSettings.showCities = e.target.checked;
+  saveSettings();
+});
+
+toggleFootprints.addEventListener("change", (e) => {
+  userSettings.showFootprints = e.target.checked;
+  saveSettings();
+});
+
+trackingBadge.addEventListener("click", () => {
+  trackedTrip = null;
+  trackingBadge.setAttribute("data-on", "false");
+  tooltip.setAttribute("data-on", "false");
+});
+
+function updateProjection() {
+  const dpr = window.devicePixelRatio || 1;
+  const w = stage.clientWidth;
+  const h = stage.clientHeight;
+  
+  mapCanvas.width = w * dpr;
+  mapCanvas.height = h * dpr;
+  mapCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+  const b = CONFIG.bounds;
+  const lonSpan = b.lon1 - b.lon0;
+  const latSpan = b.lat1 - b.lat0;
+
+  const meanLatRad = ((b.lat0 + b.lat1) / 2) * (Math.PI / 180);
+  const cosLat = Math.cos(meanLatRad);
+  const geoAspect = (lonSpan * cosLat) / latSpan;
+
+  const pad = 40;
+  const availW = w - pad * 2;
+  const availH = h - pad * 2;
+  const screenAspect = availW / availH;
+
+  let drawW, drawH;
+  if (screenAspect > geoAspect) {
+    drawH = availH;
+    drawW = drawH * geoAspect;
+  } else {
+    drawW = availW;
+    drawH = drawW / geoAspect;
+  }
+
+  proj.scaleX = drawW / lonSpan;
+  proj.scaleY = drawH / latSpan;
+  proj.offsetX = (w - drawW) / 2;
+  proj.offsetY = (h - drawH) / 2;
+  proj.width = w;
+  proj.height = h;
+
+  updateClockPos();
+}
+
+function updateClockPos() {
+  const cp = project(CONFIG.clockPos.lon, CONFIG.clockPos.lat);
+  clockHdr.style.left = `${cp.x}px`;
+  clockHdr.style.top = `${cp.y}px`;
+
+  // Determine if main northern clock is within viewport
+  const isOffscreen = (
+    cp.x < 100 ||
+    cp.x > proj.width - 100 ||
+    cp.y < 40 ||
+    cp.y > proj.height - 50
+  );
+
+  if (miniClockEl) {
+    miniClockEl.setAttribute("data-visible", isOffscreen ? "true" : "false");
+  }
+}
+
+function project(lon, lat) {
+  const b = CONFIG.bounds;
+  const baseX = proj.offsetX + (lon - b.lon0) * proj.scaleX;
+  const baseY = proj.offsetY + (b.lat1 - lat) * proj.scaleY;
+
+  const cx = proj.width / 2;
+  const cy = proj.height / 2;
+
+  const x = (baseX - cx) * view.zoom + cx + view.panX;
+  const y = (baseY - cy) * view.zoom + cy + view.panY;
+
+  return { x, y };
+}
+
+function zoomAt(targetScreenX, targetScreenY, factor) {
+  const newZoom = Math.min(view.maxZoom, Math.max(view.minZoom, view.zoom * factor));
+  if (newZoom === view.zoom) return;
+
+  const cx = proj.width / 2;
+  const cy = proj.height / 2;
+  const scaleRatio = newZoom / view.zoom;
+  
+  view.panX = targetScreenX - cx - (targetScreenX - cx - view.panX) * scaleRatio;
+  view.panY = targetScreenY - cy - (targetScreenY - cy - view.panY) * scaleRatio;
+  view.zoom = newZoom;
+
+  updateClockPos();
+}
+
+function resetView() {
+  view.zoom = 1.0;
+  view.panX = 0;
+  view.panY = 0;
+  updateClockPos();
+}
+
+zoomInBtn.addEventListener("click", () => zoomAt(proj.width / 2, proj.height / 2, 1.4));
+zoomOutBtn.addEventListener("click", () => zoomAt(proj.width / 2, proj.height / 2, 1 / 1.4));
+zoomResetBtn.addEventListener("click", resetView);
+
+stage.addEventListener("wheel", (e) => {
+  e.preventDefault();
+  const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+  zoomAt(e.clientX, e.clientY, factor);
+}, { passive: false });
+
+let pointerDownPos = { x: 0, y: 0 };
+
+stage.addEventListener("mousedown", (e) => {
+  if (e.button !== 0) return;
+  view.isDragging = true;
+  view.dragStartX = e.clientX;
+  view.dragStartY = e.clientY;
+  pointerDownPos = { x: e.clientX, y: e.clientY };
+  view.initialPanX = view.panX;
+  view.initialPanY = view.panY;
+  stage.classList.add("dragging");
+});
+
+window.addEventListener("mousemove", (e) => {
+  if (!view.isDragging) return;
+  view.panX = view.initialPanX + (e.clientX - view.dragStartX);
+  view.panY = view.initialPanY + (e.clientY - view.dragStartY);
+  updateClockPos();
+});
+
+window.addEventListener("mouseup", (e) => {
+  if (view.isDragging) {
+    view.isDragging = false;
+    stage.classList.remove("dragging");
+    const dist = Math.hypot(e.clientX - pointerDownPos.x, e.clientY - pointerDownPos.y);
+    if (dist < 4) {
+      handleMapClick(e.clientX, e.clientY);
+    }
+  }
+});
+
+stage.addEventListener("touchstart", (e) => {
+  if (e.touches.length === 1) {
+    view.isDragging = true;
+    view.dragStartX = e.touches[0].clientX;
+    view.dragStartY = e.touches[0].clientY;
+    pointerDownPos = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    view.initialPanX = view.panX;
+    view.initialPanY = view.panY;
+  } else if (e.touches.length === 2) {
+    view.isDragging = false;
+    const dx = e.touches[0].clientX - e.touches[1].clientX;
+    const dy = e.touches[0].clientY - e.touches[1].clientY;
+    view.lastPinchDist = Math.hypot(dx, dy);
+  }
+}, { passive: true });
+
+stage.addEventListener("touchmove", (e) => {
+  if (e.touches.length === 1 && view.isDragging) {
+    view.panX = view.initialPanX + (e.touches[0].clientX - view.dragStartX);
+    view.panY = view.initialPanY + (e.touches[0].clientY - view.dragStartY);
+    updateClockPos();
+  } else if (e.touches.length === 2) {
+    const dx = e.touches[0].clientX - e.touches[1].clientX;
+    const dy = e.touches[0].clientY - e.touches[1].clientY;
+    const dist = Math.hypot(dx, dy);
+    
+    if (view.lastPinchDist > 0) {
+      const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+      const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+      const factor = dist / view.lastPinchDist;
+      zoomAt(midX, midY, factor);
+    }
+    view.lastPinchDist = dist;
+  }
+}, { passive: true });
+
+stage.addEventListener("touchend", (e) => {
+  if (view.isDragging && e.changedTouches.length > 0) {
+    const touch = e.changedTouches[0];
+    const dist = Math.hypot(touch.clientX - pointerDownPos.x, touch.clientY - pointerDownPos.y);
+    if (dist < 6) {
+      handleMapClick(touch.clientX, touch.clientY);
+    }
+  }
+  view.isDragging = false;
+  view.lastPinchDist = 0;
+});
+
+function initUI() {
+  legendRows.innerHTML = "";
+  for (const k in CONFIG.classes) {
+    const c = CONFIG.classes[k];
+    const row = document.createElement("div");
+    row.className = "lg";
+    row.innerHTML = `
+      <span class="sw" style="background:${PAL.hex[c.role]}"></span>
+      <span class="nm">${c.label}</span>
+      <span class="ct" id="cnt-${k}">0</span>
+    `;
+    legendRows.appendChild(row);
+  }
+
+  netSub.textContent = `${trainData.weekday.slice(0,3)} ${trainData.date}`;
+
+  metaEl.innerHTML = `
+    <strong>${trainData.trips.length} scheduled trains</strong> on ${trainData.weekday}, ${trainData.date}.
+    Click any train to enter tracking mode.
+  `;
+
+  hourlyHistogram.fill(0);
+  trainData.trips.forEach(tr => {
+    if (tr.pts && tr.pts.length >= 2) {
+      const tStart = tr.pts[0][2];
+      const hStart = Math.floor(tStart / 3600) % 24;
+      hourlyHistogram[hStart]++;
+    }
+  });
+
+  drawProfileSparkline();
+  updateFiguresTable();
+}
+
+function drawProfileSparkline() {
+  const w = profCanvas.clientWidth || 270;
+  const h = profCanvas.clientHeight || 40;
+  profCanvas.width = w * (window.devicePixelRatio || 1);
+  profCanvas.height = h * (window.devicePixelRatio || 1);
+  profCtx.setTransform(window.devicePixelRatio || 1, 0, 0, window.devicePixelRatio || 1, 0, 0);
+
+  const maxVal = Math.max(...hourlyHistogram, 1);
+  const barW = (w - 24) / 24;
+
+  profCtx.clearRect(0, 0, w, h);
+  for (let i = 0; i < 24; i++) {
+    const val = hourlyHistogram[i];
+    const barH = Math.max(3, (val / maxVal) * (h - 8));
+    const x = i * (barW + 1);
+    const y = h - barH;
+
+    profCtx.fillStyle = rgba(PAL.rgb.ink3, currentTheme === "dark" ? 0.45 : 0.35);
+    profCtx.fillRect(x, y, barW, barH);
+  }
+}
+
+function updateFiguresTable() {
+  let totalTrips = trainData.trips.length;
+  let breakdown = {};
+  for (const k in CONFIG.classes) breakdown[k] = 0;
+  trainData.trips.forEach(t => {
+    if (breakdown[t.cls] !== undefined) breakdown[t.cls]++;
+  });
+
+  let rowsHtml = "";
+  for (const k in CONFIG.classes) {
+    const c = CONFIG.classes[k];
+    rowsHtml += `<tr><td>${c.label}</td><td>${breakdown[k]}</td></tr>`;
+  }
+  rowsHtml += `<tr><td><strong>Total</strong></td><td><strong>${totalTrips}</strong></td></tr>`;
+
+  figuresEl.innerHTML = `
+    <h2>Trains by category (${trainData.weekday})</h2>
+    <table>
+      <thead><tr><th>Category</th><th>Trips / day</th></tr></thead>
+      <tbody>${rowsHtml}</tbody>
+    </table>
+    <p>Coverage for Swedish national passenger rail on ${trainData.date}.</p>
+  `;
+}
+
+async function loadDay(dayKey) {
+  currentDay = dayKey;
+  dayBtns.forEach(b => {
+    b.setAttribute("aria-pressed", b.getAttribute("data-day") === dayKey ? "true" : "false");
+  });
+
+  if (dayCache[dayKey]) {
+    trainData = dayCache[dayKey];
+    trackedTrip = null;
+    trackingBadge.setAttribute("data-on", "false");
+    initUI();
+    return;
+  }
+
+  loadingEl.removeAttribute("hidden");
+  loadingEl.textContent = `Loading ${dayKey.toUpperCase()} timetable...`;
+
+  try {
+    const res = await fetch(`data/sweden-trains-${dayKey}.json`);
+    const data = await res.json();
+    dayCache[dayKey] = data;
+    trainData = data;
+    trackedTrip = null;
+    trackingBadge.setAttribute("data-on", "false");
+    initUI();
+    loadingEl.setAttribute("hidden", "true");
+  } catch (e) {
+    console.error("Failed to load day:", e);
+    loadingEl.textContent = "Error loading timetable for selected day.";
+  }
+}
+
+dayBtns.forEach(btn => {
+  btn.addEventListener("click", () => {
+    loadDay(btn.getAttribute("data-day"));
+  });
+});
+
+// Smooth sub-segment interpolation for any arbitrary timestamp
+function getPointAtTime(pts, t) {
+  if (!pts || pts.length < 2) return null;
+  const t0 = pts[0][2];
+  const t1 = pts[pts.length - 1][2];
+  if (t < t0 || t > t1) return null;
+
+  let low = 0, high = pts.length - 1;
+  while (low <= high) {
+    const mid = (low + high) >> 1;
+    if (pts[mid][2] <= t) {
+      low = mid + 1;
+    } else {
+      high = mid - 1;
+    }
+  }
+  const idx = Math.max(0, high);
+  if (idx >= pts.length - 1) return { lon: pts[pts.length - 1][0], lat: pts[pts.length - 1][1], idx };
+
+  const pA = pts[idx];
+  const pB = pts[idx + 1];
+  const dt = pB[2] - pA[2];
+  const frac = dt > 0 ? (t - pA[2]) / dt : 0;
+
+  const lon = pA[0] + (pB[0] - pA[0]) * frac;
+  const lat = pA[1] + (pB[1] - pA[1]) * frac;
+
+  return { lon, lat, idx };
+}
+
+// Find train position and continuous smooth trail at current simulation time
+function getTrainState(trip, tNow) {
+  const pts = trip.pts;
+  if (!pts || pts.length < 2) return null;
+  const t0 = pts[0][2];
+  const t1 = pts[pts.length - 1][2];
+
+  if (tNow < t0 || tNow > t1) return null;
+
+  const head = getPointAtTime(pts, tNow);
+  if (!head) return null;
+  if (head.lat < 54.5 || head.lat > 70.0 || head.lon < 9.0 || head.lon > 26.0) return null;
+
+  const clsConf = CONFIG.classes[trip.cls] || CONFIG.classes.regional;
+  const baseTrailSecs = clsConf.trailSecs || 400;
+  const trailDuration = baseTrailSecs * userSettings.trailScale;
+  const trailStartT = tNow - trailDuration;
+
+  const trailCoords = [];
+  if (trailStartT > t0) {
+    const tail = getPointAtTime(pts, trailStartT);
+    const minIdx = tail ? tail.idx : 0;
+    for (let i = head.idx; i > minIdx; i--) {
+      trailCoords.push([pts[i][0], pts[i][1]]);
+    }
+    if (tail) {
+      trailCoords.push([tail.lon, tail.lat]);
+    }
+  } else {
+    for (let i = head.idx; i >= 0; i--) {
+      trailCoords.push([pts[i][0], pts[i][1]]);
+    }
+  }
+
+  return {
+    lon: head.lon,
+    lat: head.lat,
+    trailCoords,
+    trip
+  };
+}
+
+// Render loop
+function render(now) {
+  const dt = (now - lastFrameTime) / 1000;
+  lastFrameTime = now;
+
+  if (isPlaying) {
+    simSeconds = (simSeconds + dt * speedMultiplier) % DAY_SECONDS;
+    scrub.value = Math.floor(simSeconds);
+  }
+
+  const hours = Math.floor(simSeconds / 3600);
+  const minutes = Math.floor((simSeconds % 3600) / 60);
+  const hStr = String(hours).padStart(2, "0");
+  const mStr = ":" + String(minutes).padStart(2, "0");
+
+  clockEl.querySelector(".hrs").textContent = hStr;
+  clockEl.querySelector(".mins").textContent = mStr;
+
+  if (miniClockTime) {
+    miniClockTime.querySelector(".hrs").textContent = hStr;
+    miniClockTime.querySelector(".mins").textContent = mStr;
+  }
+
+  const isNight = hours >= 1 && hours <= 4;
+  runningEl.setAttribute("data-ffwd", isNight ? "true" : "false");
+
+  const w = proj.width;
+  const h = proj.height;
+  mapCtx.clearRect(0, 0, w, h);
+
+  // 1. Draw Map Base (Sweden Land & Detailed County Outlines)
+  if (geoData && geoData.outline) {
+    mapCtx.fillStyle = PAL.hex.land;
+    mapCtx.strokeStyle = PAL.hex.landLine;
+    mapCtx.lineWidth = Math.max(0.5, 0.7 * Math.sqrt(view.zoom));
+
+    geoData.outline.forEach(ring => {
+      if (ring.length < 3) return;
+      mapCtx.beginPath();
+      const p0 = project(ring[0][0], ring[0][1]);
+      mapCtx.moveTo(p0.x, p0.y);
+      for (let i = 1; i < ring.length; i++) {
+        const p = project(ring[i][0], ring[i][1]);
+        mapCtx.lineTo(p.x, p.y);
+      }
+      mapCtx.closePath();
+      mapCtx.fill();
+      mapCtx.stroke();
+    });
+  }
+
+  // 2. Draw Major Swedish Lakes (Vänern, Vättern, Mälaren, Hjälmaren, Siljan, etc.)
+  if (geoData && geoData.lakes) {
+    mapCtx.fillStyle = PAL.hex.bgBot;
+    mapCtx.strokeStyle = PAL.hex.landLine;
+    mapCtx.lineWidth = 0.6;
+
+    geoData.lakes.forEach(ring => {
+      if (ring.length < 3) return;
+      mapCtx.beginPath();
+      const p0 = project(ring[0][0], ring[0][1]);
+      mapCtx.moveTo(p0.x, p0.y);
+      for (let i = 1; i < ring.length; i++) {
+        const p = project(ring[i][0], ring[i][1]);
+        mapCtx.lineTo(p.x, p.y);
+      }
+      mapCtx.closePath();
+      mapCtx.fill();
+      mapCtx.stroke();
+    });
+  }
+
+  // 3. Draw Dense Urban City Footprints (Strictly clipped to Land boundary)
+  if (userSettings.showFootprints && geoData && geoData.city_limits && geoData.outline) {
+    mapCtx.save();
+    mapCtx.beginPath();
+    geoData.outline.forEach(ring => {
+      if (ring.length < 3) return;
+      const p0 = project(ring[0][0], ring[0][1]);
+      mapCtx.moveTo(p0.x, p0.y);
+      for (let i = 1; i < ring.length; i++) {
+        const p = project(ring[i][0], ring[i][1]);
+        mapCtx.lineTo(p.x, p.y);
+      }
+      mapCtx.closePath();
+    });
+    mapCtx.clip();
+
+    mapCtx.fillStyle = PAL.hex.cityFill;
+    mapCtx.strokeStyle = PAL.hex.cityLine;
+    mapCtx.lineWidth = 0.6;
+
+    geoData.city_limits.forEach(ring => {
+      if (ring.length < 3) return;
+      mapCtx.beginPath();
+      const p0 = project(ring[0][0], ring[0][1]);
+      mapCtx.moveTo(p0.x, p0.y);
+      for (let i = 1; i < ring.length; i++) {
+        const p = project(ring[i][0], ring[i][1]);
+        mapCtx.lineTo(p.x, p.y);
+      }
+      mapCtx.closePath();
+      mapCtx.fill();
+      mapCtx.stroke();
+    });
+    mapCtx.restore();
+  }
+
+  // 4. Draw Railway Track Lines with Opacity Setting (Foreign tracks greyed out)
+  if (userSettings.trackOpacity > 0 && geoData && geoData.tracks) {
+    const alpha = (userSettings.trackOpacity / 100) * (currentTheme === "dark" ? 0.22 : 0.30);
+    mapCtx.lineWidth = 0.55;
+
+    geoData.tracks.forEach(line => {
+      if (line.length < 2) return;
+      const isForeign = isOutsideSweden(line[0][0], line[0][1]) || isOutsideSweden(line[line.length - 1][0], line[line.length - 1][1]);
+      
+      mapCtx.beginPath();
+      const p0 = project(line[0][0], line[0][1]);
+      mapCtx.moveTo(p0.x, p0.y);
+      for (let i = 1; i < line.length; i++) {
+        const p = project(line[i][0], line[i][1]);
+        mapCtx.lineTo(p.x, p.y);
+      }
+      mapCtx.strokeStyle = isForeign ? rgba(PAL.rgb.foreign, alpha * 0.7) : rgba(PAL.rgb.trackBase || [100, 175, 255], alpha);
+      mapCtx.stroke();
+    });
+  }
+
+  // 5. Draw Full Route Line Highlight for Hovered or Tracked Train
+  const activeFocusTrip = trackedTrip || hoveredTrip;
+  if (activeFocusTrip && activeFocusTrip.pts && activeFocusTrip.pts.length >= 2) {
+    const conf = CONFIG.classes[activeFocusTrip.cls] || CONFIG.classes.regional;
+    const isForeign = isOutsideSweden(activeFocusTrip.pts[0][0], activeFocusTrip.pts[0][1]);
+    const highlightRgb = isForeign ? PAL.rgb.foreign : (PAL.rgb[conf.role] || PAL.rgb.regional);
+
+    mapCtx.save();
+    mapCtx.beginPath();
+    const p0 = project(activeFocusTrip.pts[0][0], activeFocusTrip.pts[0][1]);
+    mapCtx.moveTo(p0.x, p0.y);
+    for (let i = 1; i < activeFocusTrip.pts.length; i++) {
+      const p = project(activeFocusTrip.pts[i][0], activeFocusTrip.pts[i][1]);
+      mapCtx.lineTo(p.x, p.y);
+    }
+    mapCtx.strokeStyle = rgba(highlightRgb, currentTheme === "dark" ? 0.75 : 0.85);
+    mapCtx.lineWidth = Math.min(3.2, 1.8 * Math.sqrt(view.zoom));
+    mapCtx.stroke();
+    mapCtx.restore();
+  }
+
+  // 6. Draw Cities with 3 Dynamic Zoom Tiers
+  if (userSettings.showCities) {
+    const z = view.zoom;
+    CONFIG.cities.forEach(([name, lat, lon, tier]) => {
+      if (tier === 2 && z < 1.6) return;
+      if (tier === 3 && z < 3.2) return;
+
+      const p = project(lon, lat);
+      
+      let rad = 1.4;
+      if (tier === 1) rad = Math.min(4.5, 2.2 * Math.sqrt(z));
+      else if (tier === 2) rad = Math.min(3.2, 1.5 * Math.sqrt(z));
+      else rad = Math.min(2.5, 1.1 * Math.sqrt(z));
+
+      mapCtx.beginPath();
+      mapCtx.arc(p.x, p.y, rad, 0, Math.PI * 2);
+      mapCtx.fillStyle = tier === 1 ? PAL.hex.hub : (tier === 2 ? PAL.hex.station : rgba(PAL.rgb.ink3, 0.6));
+      mapCtx.fill();
+
+      if (tier === 1 || (tier === 2 && z > 1.8) || (tier === 3 && z > 3.4)) {
+        let baseFontSize = 10;
+        if (tier === 1) baseFontSize = 10.5;
+        else if (tier === 2) baseFontSize = 9.5;
+        else baseFontSize = 8.5;
+
+        const fontSize = Math.min(13, Math.max(8, Math.round(baseFontSize * Math.pow(z, 0.18))));
+        mapCtx.font = `${fontSize}px 'IBM Plex Sans', sans-serif`;
+        mapCtx.fillStyle = tier === 1 ? PAL.hex.ink : (tier === 2 ? PAL.hex.ink2 : PAL.hex.ink3);
+        mapCtx.fillText(name, p.x + rad + 4, p.y + 3);
+      }
+    });
+  }
+
+  // 7. Draw Active Trains & Trails
+  let activeCounts = { highspeed: 0, intercity: 0, regional: 0, night: 0 };
+  let totalActive = 0;
+  let trackedTrainHead = null;
+
+  if (trainData && trainData.trips) {
+    const scaleFactor = userSettings.trainScale;
+
+    trainData.trips.forEach(tr => {
+      const state = getTrainState(tr, simSeconds);
+      if (!state) return;
+
+      const cls = tr.cls;
+      if (activeCounts[cls] !== undefined) activeCounts[cls]++;
+      totalActive++;
+
+      const isForeign = isOutsideSweden(state.lon, state.lat);
+      const conf = CONFIG.classes[cls] || CONFIG.classes.regional;
+      const rgbColor = isForeign ? PAL.rgb.foreign : (PAL.rgb[conf.role] || PAL.rgb.regional);
+      const headPos = project(state.lon, state.lat);
+
+      const isTracked = trackedTrip && trackedTrip.id === tr.id;
+      if (isTracked) {
+        trackedTrainHead = { pos: headPos, trip: tr };
+      }
+
+      // Draw trail smoothly
+      if (state.trailCoords && state.trailCoords.length > 0) {
+        mapCtx.beginPath();
+        mapCtx.moveTo(headPos.x, headPos.y);
+        let lastP = { lon: state.lon, lat: state.lat };
+        for (let i = 0; i < state.trailCoords.length; i++) {
+          const pt = state.trailCoords[i];
+          if (Math.hypot(pt[0] - lastP.lon, pt[1] - lastP.lat) > 0.4) break;
+          const pr = project(pt[0], pt[1]);
+          mapCtx.lineTo(pr.x, pr.y);
+          lastP = { lon: pt[0], lat: pt[1] };
+        }
+        mapCtx.strokeStyle = rgba(rgbColor, currentTheme === "dark" ? 0.45 : 0.65);
+        mapCtx.lineWidth = Math.min(2.5, (isTracked ? 2.0 : 1.3) * Math.sqrt(view.zoom) * scaleFactor);
+        mapCtx.stroke();
+      }
+
+      // Draw train head dot
+      const rad = Math.min(7, 2.6 * conf.size * Math.pow(view.zoom, 0.35) * scaleFactor * (isTracked ? 1.4 : 1.0));
+      mapCtx.beginPath();
+      mapCtx.arc(headPos.x, headPos.y, rad, 0, Math.PI * 2);
+      mapCtx.fillStyle = css(rgbColor);
+      mapCtx.fill();
+
+      // Outer ring for high-speed, night, or tracked trains
+      if (conf.ring > 0.5 || isTracked) {
+        mapCtx.beginPath();
+        mapCtx.arc(headPos.x, headPos.y, rad + (isTracked ? 2.6 : 1.8) * scaleFactor, 0, Math.PI * 2);
+        mapCtx.strokeStyle = rgba(rgbColor, currentTheme === "dark" ? 0.7 : 0.9);
+        mapCtx.lineWidth = isTracked ? 1.4 : 0.9;
+        mapCtx.stroke();
+      }
+    });
+  }
+
+  if (trackedTrainHead) {
+    updateTooltipContent(trackedTrainHead.trip, trackedTrainHead.pos);
+  }
+
+  const runningStr = `${totalActive} trains running`;
+  runningEl.textContent = runningStr;
+  if (miniClockRunning) {
+    miniClockRunning.textContent = runningStr;
+  }
+  for (const k in activeCounts) {
+    const el = document.getElementById(`cnt-${k}`);
+    if (el) el.textContent = activeCounts[k];
+  }
+
+  requestAnimationFrame(render);
+}
+
+function updateTooltipContent(trip, pos) {
+  const conf = CONFIG.classes[trip.cls] || CONFIG.classes.regional;
+  const operator = trip.op || "Swedish Rail";
+  const routeStr = (trip.from && trip.to) ? `${trip.from} → ${trip.to}` : "";
+
+  tooltip.querySelector(".tn").textContent = trip.id;
+  
+  const routeEl = tooltip.querySelector(".route");
+  if (routeStr) {
+    routeEl.textContent = routeStr;
+    routeEl.style.display = "block";
+  } else {
+    routeEl.style.display = "none";
+  }
+
+  tooltip.querySelector(".th").textContent = conf.label;
+  tooltip.querySelector(".op").textContent = `Operator: ${operator}`;
+
+  tooltip.style.left = `${pos.x}px`;
+  tooltip.style.top = `${pos.y}px`;
+  tooltip.setAttribute("data-on", "true");
+}
+
+function findClosestTrain(clientX, clientY) {
+  if (!trainData || !trainData.trips) return null;
+  const rect = mapCanvas.getBoundingClientRect();
+  const mx = clientX - rect.left;
+  const my = clientY - rect.top;
+
+  let closest = null;
+  let minD = 24;
+
+  trainData.trips.forEach(tr => {
+    const state = getTrainState(tr, simSeconds);
+    if (!state) return;
+    const p = project(state.lon, state.lat);
+    const d = Math.hypot(p.x - mx, p.y - my);
+    if (d < minD) {
+      minD = d;
+      closest = { trip: tr, pos: p };
+    }
+  });
+
+  return closest;
+}
+
+function handlePointerMove(clientX, clientY) {
+  if (view.isDragging) return;
+  
+  const closest = findClosestTrain(clientX, clientY);
+  if (closest) {
+    hoveredTrip = closest.trip;
+    if (!trackedTrip) {
+      updateTooltipContent(closest.trip, closest.pos);
+    }
+  } else {
+    hoveredTrip = null;
+    if (!trackedTrip) {
+      tooltip.setAttribute("data-on", "false");
+    }
+  }
+}
+
+function handleMapClick(clientX, clientY) {
+  const closest = findClosestTrain(clientX, clientY);
+  if (closest) {
+    trackedTrip = closest.trip;
+    trackingBadge.querySelector("span").textContent = `${closest.trip.id}`;
+    trackingBadge.setAttribute("data-on", "true");
+    updateTooltipContent(closest.trip, closest.pos);
+  } else {
+    trackedTrip = null;
+    trackingBadge.setAttribute("data-on", "false");
+    tooltip.setAttribute("data-on", "false");
+  }
+}
+
+stage.addEventListener("mousemove", (e) => {
+  handlePointerMove(e.clientX, e.clientY);
+});
+
+stage.addEventListener("touchstart", (e) => {
+  if (e.touches.length === 1) {
+    handlePointerMove(e.touches[0].clientX, e.touches[0].clientY);
+  }
+}, { passive: true });
+
+stage.addEventListener("mouseleave", () => {
+  hoveredTrip = null;
+  if (!trackedTrip) {
+    tooltip.setAttribute("data-on", "false");
+  }
+});
+
+window.addEventListener("resize", updateProjection);
+
+window.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") {
+    trackedTrip = null;
+    trackingBadge.setAttribute("data-on", "false");
+    tooltip.setAttribute("data-on", "false");
+    settingsModal.setAttribute("data-open", "false");
+  }
+});
+
+playBtn.addEventListener("click", () => {
+  isPlaying = !isPlaying;
+  playBtn.textContent = isPlaying ? "Pause" : "Play";
+  playBtn.setAttribute("aria-pressed", isPlaying ? "true" : "false");
+});
+
+scrub.addEventListener("input", (e) => {
+  simSeconds = parseInt(e.target.value, 10);
+});
+
+spdBtns.forEach(btn => {
+  btn.addEventListener("click", () => {
+    spdBtns.forEach(b => b.setAttribute("aria-pressed", "false"));
+    btn.setAttribute("aria-pressed", "true");
+    speedMultiplier = parseInt(btn.getAttribute("data-mps"), 10);
+  });
+});
+
+figBtn.addEventListener("click", () => {
+  const isOpen = figuresEl.getAttribute("data-open") === "true";
+  figuresEl.setAttribute("data-open", isOpen ? "false" : "true");
+  figBtn.setAttribute("aria-expanded", isOpen ? "false" : "true");
+});
+
+async function init() {
+  updateProjection();
+  try {
+    const geoRes = await fetch("data/sweden-geo.json");
+    geoData = await geoRes.json();
+
+    const trainRes = await fetch("data/sweden-trains-wed.json");
+    trainData = await trainRes.json();
+    dayCache["wed"] = trainData;
+
+    initUI();
+    loadingEl.setAttribute("hidden", "true");
+    requestAnimationFrame(render);
+  } catch (err) {
+    loadingEl.textContent = "Error loading data files. Please run scripts/prepare_data.py.";
+    console.error("Failed to load map data:", err);
+  }
+}
+
+init();
+
+})();
+</script>
+</body>
+</html>

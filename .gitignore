@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.env
+.venv/
+venv/
+
+# Large raw dataset zips
+*.zip
+data/*.zip
+
+# IDE & OS
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
