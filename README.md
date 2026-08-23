@@ -2,28 +2,6 @@
 
 An interactive 24-hour visualization of passenger train movements across Sweden. Built with vanilla HTML5 Canvas and JavaScript without external runtime dependencies.
 
-```
-┌────────────────────────────────────────────────────────────────────────┐
-│  SWEDEN · Wed 2026-09-02          [Light/Dark] [Figures]               │
-│  [Mon][Tue][Wed][Thu][Fri][Sat][Sun]                                   │
-│  2,960 scheduled trains                                                │
-│                                                                        │
-│                    (Lapland)                                           │
-│                     08:42                                              │
-│               342 trains running                                       │
-│                                                                        │
-│                      * Stockholm                                       │
-│                    /                                                   │
-│      * Göteborg --o-- * Linköping                                      │
-│           \                                                            │
-│            * Malmö                                     [+][-][1:1][⚙]  │
-│                                                                        │
-│  [Legend]                            [Pause] [===■====] [1x][2x][4x][8x]
-└────────────────────────────────────────────────────────────────────────┘
-```
-
----
-
 ## System Architecture
 
 ```
