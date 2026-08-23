@@ -48,31 +48,44 @@ def create_urban_footprint(lon, lat, radius_km, num_points=14, aspect=1.0, angle
     ring.append(ring[0])
     return ring
 
-def build_clean_railway_network(trains_file):
-    print(f"Building clean curved railway track network from {trains_file}...")
-    with open(trains_file, 'r', encoding='utf-8') as f:
-        data = json.load(f)
+def build_clean_railway_network(data_dir):
+    print("Building clean curved railway track network from all active 7-day train services...")
+    import glob
 
     raw_corridors = []
-    for tr in data['trips']:
-        pts = tr['pts']
-        coords = [[p[0], p[1]] for p in pts]
-        
-        cleaned = [coords[0]]
-        for pt in coords[1:]:
-            prev = cleaned[-1]
-            if math.hypot(pt[0] - prev[0], pt[1] - prev[1]) >= 0.004:
-                cleaned.append(pt)
-        if len(cleaned) >= 2:
-            raw_corridors.append(cleaned)
+    week_files = sorted(glob.glob(os.path.join(data_dir, 'sweden-trains-*.json')))
+    print(f"Aggregating active train paths from {len(week_files)} daily timetable files...")
 
+    total_trips = 0
+    for fpath in week_files:
+        with open(fpath, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        trips = data.get('trips', [])
+        total_trips += len(trips)
+        for tr in trips:
+            pts = tr.get('pts', [])
+            if len(pts) >= 2:
+                coords = [(p[0], p[1]) for p in pts]
+                raw_corridors.append(coords)
+
+    print(f"Collected {len(raw_corridors)} active train paths from {total_trips} weekly services.")
+
+    # Spatially clean and bundle parallel tracks tightly along true corridors
     grid_edges = set()
     track_segments = []
     
     for line in raw_corridors:
-        for i in range(len(line) - 1):
-            p1 = (round(line[i][0], 3), round(line[i][1], 3))
-            p2 = (round(line[i+1][0], 3), round(line[i+1][1], 3))
+        cleaned = [line[0]]
+        for pt in line[1:]:
+            prev = cleaned[-1]
+            if math.hypot(pt[0] - prev[0], pt[1] - prev[1]) >= 0.003:
+                cleaned.append(pt)
+        if len(cleaned) < 2:
+            continue
+
+        for i in range(len(cleaned) - 1):
+            p1 = (round(cleaned[i][0], 3), round(cleaned[i][1], 3))
+            p2 = (round(cleaned[i+1][0], 3), round(cleaned[i+1][1], 3))
             if p1 != p2:
                 if 54.5 <= p1[1] <= 70.0 and 54.5 <= p2[1] <= 70.0 and 9.0 <= p1[0] <= 26.0 and 9.0 <= p2[0] <= 26.0:
                     edge = tuple(sorted([p1, p2]))
@@ -80,6 +93,7 @@ def build_clean_railway_network(trains_file):
                         grid_edges.add(edge)
                         track_segments.append([list(p1), list(p2)])
 
+    # Stitch segments into continuous polylines
     adj = defaultdict(list)
     for seg in track_segments:
         p1 = (seg[0][0], seg[0][1])
@@ -205,67 +219,52 @@ def prepare_sweden_geo():
     except Exception as e:
         print(f"Note: Could not load external lakes dataset: {e}")
 
-    # 3. Dense Urban Center Footprints
-    urban_centers = [
-        ("Stockholm", 59.330, 18.058, 5.5, 1.2, 20),
-        ("Göteborg", 57.708, 11.973, 4.5, 1.3, -30),
-        ("Malmö", 55.609, 13.000, 3.8, 1.1, 45),
-        ("Uppsala", 59.858, 17.646, 3.2, 1.1, 0),
-        ("Västerås", 59.607, 16.552, 2.8, 1.1, 15),
-        ("Örebro", 59.278, 15.212, 2.8, 1.1, -10),
-        ("Linköping", 58.416, 15.626, 2.8, 1.1, 30),
-        ("Helsingborg", 56.046, 12.705, 2.4, 1.2, -45),
-        ("Jönköping", 57.784, 14.163, 2.6, 1.2, -20),
-        ("Norrköping", 58.596, 16.183, 2.6, 1.1, 40),
-        ("Lund", 55.707, 13.187, 2.2, 1.0, 10),
-        ("Umeå", 63.829, 20.266, 2.6, 1.2, -25),
-        ("Gävle", 60.676, 17.151, 2.5, 1.1, 15),
-        ("Borås", 57.720, 12.936, 2.4, 1.1, 0),
-        ("Södertälje", 59.196, 17.628, 2.2, 1.2, -15),
-        ("Eskilstuna", 59.371, 16.508, 2.2, 1.1, 20),
-        ("Halmstad", 56.670, 12.865, 2.2, 1.2, -35),
-        ("Växjö", 56.877, 14.807, 2.2, 1.0, 0),
-        ("Karlstad", 59.378, 13.499, 2.4, 1.2, -10),
-        ("Sundsvall", 62.387, 17.315, 2.4, 1.2, 35),
-        ("Östersund", 63.172, 14.636, 2.2, 1.1, -20),
-        ("Trollhättan", 58.284, 12.296, 2.0, 1.2, 10),
-        ("Luleå", 65.584, 22.165, 2.2, 1.2, 40),
-        ("Kiruna", 67.869, 20.222, 1.8, 1.0, 0),
-        ("Falun", 60.603, 15.636, 1.8, 1.1, 25),
-        ("Borlänge", 60.485, 15.432, 2.0, 1.1, -15),
-        ("Skövde", 58.390, 13.855, 2.0, 1.0, 0),
-        ("Karlskrona", 56.166, 15.586, 1.6, 1.2, -45),
-        ("Kristianstad", 56.033, 14.159, 1.8, 1.1, 15),
-        ("Kalmar", 56.662, 16.358, 1.7, 1.2, -30),
-        ("Skellefteå", 64.750, 20.954, 2.0, 1.1, 0),
-        ("Visby", 57.635, 18.298, 1.6, 1.0, 15),
-        ("Piteå", 65.317, 21.480, 1.6, 1.1, 0),
-        ("Boden", 65.825, 21.688, 1.7, 1.0, 0),
-        ("Gällivare", 67.133, 20.660, 1.5, 1.0, 0),
-        ("Ystad", 55.430, 13.826, 1.4, 1.1, -45),
-        ("Trelleborg", 55.375, 13.158, 1.4, 1.1, 0),
-        ("Landskrona", 55.867, 12.860, 1.5, 1.1, 0),
-        ("Varberg", 57.111, 12.249, 1.5, 1.1, 0),
-        ("Nässjö", 57.653, 14.697, 1.5, 1.0, 0),
-        ("Herrljunga", 58.077, 13.024, 1.2, 1.0, 0),
-        ("Katrineholm", 58.996, 16.208, 1.5, 1.0, 0),
-        ("Alvesta", 56.899, 14.556, 1.3, 1.0, 0),
-        ("Hässleholm", 56.158, 13.764, 1.5, 1.0, 0)
-    ]
+    # 3. Real Satellite-Derived Urban Footprints (Core + Semi-Urban Metropolitan Fringe)
+    urban_raw_path = os.path.join(data_dir, 'osm', 'sweden-urban-raw.json')
+    core_urban = []
+    semi_urban = []
+    if os.path.exists(urban_raw_path):
+        with open(urban_raw_path, 'r', encoding='utf-8') as f:
+            urban_feats = json.load(f)
+        for feat in urban_feats:
+            geom = feat.get('geometry', {})
+            gtype = geom.get('type')
+            coords = geom.get('coordinates', [])
+            def extract_rings(c_list, depth):
+                rings = []
+                if depth == 1:
+                    ring = [[round(pt[0], 3), round(pt[1], 3)] for pt in c_list]
+                    if len(ring) >= 4: rings.append(ring)
+                else:
+                    for sub in c_list: rings.extend(extract_rings(sub, depth - 1))
+                return rings
 
-    city_limits = []
-    for c_name, lat, lon, rad, asp, ang in urban_centers:
-        poly = create_urban_footprint(lon, lat, rad, num_points=14, aspect=asp, angle_deg=ang)
-        city_limits.append(poly)
+            if gtype == 'Polygon':
+                core_urban.extend(extract_rings(coords, 2))
+            elif gtype == 'MultiPolygon':
+                core_urban.extend(extract_rings(coords, 3))
 
-    # 4. Clean Curved Railway Tracks
-    tracks = build_clean_railway_network(wed_trains)
+        for ring in core_urban:
+            cx = sum(p[0] for p in ring) / len(ring)
+            cy = sum(p[1] for p in ring) / len(ring)
+            expanded = []
+            for p in ring:
+                dx = (p[0] - cx) * 0.35
+                dy = (p[1] - cy) * 0.35
+                expanded.append([round(p[0] + dx, 3), round(p[1] + dy, 3)])
+            semi_urban.append(expanded)
+        print(f"Loaded {len(core_urban)} real satellite urban footprints + {len(semi_urban)} semi-urban buffers.")
+
+    # 4. Clean Curved Railway Tracks (exclusively from active weekly services)
+    tracks = build_clean_railway_network(data_dir)
 
     geo_out = {
         "outline": coastlines,
         "states": coastlines,
         "lakes": lakes,
-        "city_limits": city_limits,
+        "city_limits": core_urban,
+        "core_urban": core_urban,
+        "semi_urban": semi_urban,
         "tracks": tracks
     }
 
@@ -273,7 +272,7 @@ def prepare_sweden_geo():
         json.dump(geo_out, f, separators=(',', ':'))
 
     size_kb = os.path.getsize(out_path) / 1024
-    print(f"Saved sweden-geo.json ({size_kb:.1f} KB) with {len(coastlines)} islands & coastline polygons, {len(lakes)} Swedish lakes, and {len(tracks)} clean curved railway tracks.")
+    print(f"Saved sweden-geo.json ({size_kb:.1f} KB) with {len(coastlines)} islands & coastline polygons, {len(lakes)} Swedish lakes, {len(core_urban)} urban footprints, and {len(tracks)} clean curved railway tracks.")
 
 if __name__ == '__main__':
     prepare_sweden_geo()

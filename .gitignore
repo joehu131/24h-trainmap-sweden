@@ -6,9 +6,12 @@ __pycache__/
 .venv/
 venv/
 
-# Large raw dataset zips
+# Large raw dataset zips & cache
 *.zip
 data/*.zip
+data/osm/
+data/*.json.gz
+data/*-osm.json
 
 # IDE & OS
 .DS_Store

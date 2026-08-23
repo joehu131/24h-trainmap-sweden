@@ -79,6 +79,15 @@
   #map { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
   #dock { display: contents; }
 
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--rule);
+    border-radius: 8px;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+  }
+
   /* Top-left stack: Network badge + Day pills + Meta card + Dynamic Mini Clock */
   #top-bar {
     position: fixed; z-index: 6; left: 18px; top: 18px;
@@ -140,6 +149,193 @@
     margin-top: 4px; font-size: 0.68rem; letter-spacing: 0.04em;
     color: var(--ink-3); font-family: "IBM Plex Mono", monospace;
   }
+
+  /* Top-right actions: Source selector + Theme toggle + Figures button */
+  #top-right {
+    position: fixed; z-index: 4; right: 20px; top: 18px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  #source-wrapper {
+    display: inline-flex; align-items: center; padding: 2px 7px;
+  }
+  #source-select {
+    background: transparent; border: 0; color: var(--ink);
+    font-family: inherit; font-size: 0.74rem; font-weight: 500;
+    cursor: pointer; outline: none; padding: 2px 0;
+  }
+  #source-select option {
+    background: var(--bg); color: var(--ink);
+  }
+  #theme-toggle {
+    display: inline-flex; align-items: center; gap: 5px; font-size: 0.76rem;
+  }
+
+  /* Floating Zoom + Settings card */
+  #zoom-controls {
+    position: fixed; z-index: 4; right: 20px; bottom: 85px;
+    display: flex; flex-direction: column; gap: 4px; padding: 4px;
+  }
+  #zoom-controls button {
+    width: 32px; height: 32px; padding: 0;
+    display: grid; place-items: center;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.95rem; font-weight: 500; line-height: 1;
+  }
+  #zoom-controls button.reset-btn {
+    font-size: 0.62rem;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+  }
+  #zoom-controls button svg { display: block; }
+
+  /* Settings Popup Modal */
+  #settings-modal {
+    position: fixed; z-index: 7; right: 62px; bottom: 85px;
+    width: 290px; padding: 14px 16px; display: none;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  }
+  #settings-modal[data-open="true"] { display: block; }
+  .modal-hdr {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--rule);
+  }
+  .modal-hdr h2 {
+    font-size: 0.76rem; font-weight: 600; letter-spacing: 0.06em;
+    text-transform: uppercase; color: var(--ink); margin: 0;
+  }
+  #settings-close {
+    background: transparent; border: 0; color: var(--ink-3); font-size: 1.1rem;
+    line-height: 1; padding: 2px 4px; cursor: pointer; border-radius: 4px;
+  }
+  #settings-close:hover { color: var(--ink); background: rgba(128, 128, 128, 0.15); }
+  .modal-body { display: flex; flex-direction: column; gap: 11px; }
+  .setting-row {
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 0.72rem; color: var(--ink-2);
+  }
+  .setting-row label { cursor: pointer; }
+  .setting-row .ctl-wrap { display: flex; align-items: center; gap: 8px; }
+  .setting-row input[type="range"] {
+    width: 90px; height: 4px; -webkit-appearance: none; appearance: none;
+    background: var(--rule); border-radius: 2px; outline: none; cursor: pointer;
+  }
+  .setting-row input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 12px; height: 12px; border-radius: 50%;
+    background: var(--ink); cursor: pointer;
+  }
+  .setting-row input[type="range"]::-moz-range-thumb {
+    width: 12px; height: 12px; border-radius: 50%; border: 0;
+    background: var(--ink); cursor: pointer;
+  }
+  .setting-row .val-lbl {
+    font-family: "IBM Plex Mono", monospace; font-size: 0.68rem;
+    color: var(--ink-3); min-width: 32px; text-align: right;
+  }
+  .setting-row input[type="checkbox"] {
+    accent-color: var(--highspeed); cursor: pointer; width: 14px; height: 14px;
+  }
+
+  /* Center Map Clock in Lapland */
+  header#clock-hdr {
+    position: absolute; z-index: 2; pointer-events: none;
+    transform: translate(-50%, -50%);
+    text-align: center; white-space: nowrap;
+    transition: opacity 0.2s ease;
+  }
+  #clock {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: clamp(2.8rem, 6.5vw, 5.2rem);
+    font-weight: 300; line-height: 0.95;
+    letter-spacing: -0.03em;
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+  }
+  #clock .mins { opacity: 0.6; }
+  #running {
+    margin-top: 6px;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.78rem; letter-spacing: 0.06em;
+    color: var(--ink-3); text-transform: uppercase;
+  }
+  #tracking-badge {
+    margin-top: 6px;
+    display: none;
+    pointer-events: auto;
+    cursor: pointer;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.72rem;
+    padding: 3px 8px;
+    border-radius: 12px;
+    background: rgba(90, 169, 255, 0.18);
+    border: 1px solid var(--highspeed);
+    color: var(--highspeed);
+  }
+  #tracking-badge[data-active="true"] { display: inline-flex; align-items: center; gap: 5px; }
+  #tracking-badge:hover { background: rgba(90, 169, 255, 0.28); }
+
+  /* Bottom Left Legend */
+  #legend {
+    position: fixed; z-index: 4; left: 18px; bottom: 18px;
+    padding: 12px 14px; min-width: 250px;
+  }
+  #legend h2 {
+    font-size: 0.65rem; font-weight: 600; letter-spacing: 0.08em;
+    text-transform: uppercase; color: var(--ink-3); margin-bottom: 9px;
+  }
+  .lg {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 8px; font-size: 0.73rem; padding: 3px 0; color: var(--ink-2);
+  }
+  .lg .sw {
+    width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex-shrink: 0;
+  }
+  .lg .nm {
+    flex: 1; margin-left: 5px; color: var(--ink-2); font-size: 0.73rem;
+  }
+  .lg .ct {
+    font-family: "IBM Plex Mono", monospace; font-size: 0.70rem;
+    color: var(--ink-3); font-variant-numeric: tabular-nums;
+  }
+  #legend-note {
+    margin-top: 9px; padding-top: 7px; border-top: 1px solid var(--rule);
+    font-size: 0.62rem; color: var(--ink-3); line-height: 1.4;
+  }
+
+  /* Bottom Right Playback Controls */
+  #controls {
+    position: fixed; z-index: 4; right: 20px; bottom: 18px;
+    display: flex; align-items: center; gap: 10px; padding: 8px 12px;
+  }
+  button {
+    font-family: inherit; font-size: 0.75rem; color: var(--ink-2);
+    background: transparent; border: 1px solid var(--rule); border-radius: 6px;
+    padding: 6px 11px; cursor: pointer; transition: all 0.15s ease;
+  }
+  button:hover { color: var(--ink); border-color: var(--ink-3); background: rgba(128, 128, 128, 0.08); }
+  button:focus-visible { outline: 1px solid var(--ink-2); outline-offset: 2px; }
+  button[aria-pressed="true"] { color: var(--ink); border-color: currentColor; background: rgba(128, 128, 128, 0.15); font-weight: 500; }
+  #play { min-width: 66px; }
+  .spd { display: flex; gap: 4px; }
+  .spd button { padding: 5px 9px; font-family: "IBM Plex Mono", monospace; font-size: 0.76rem; }
+
+  #profile { position: relative; width: 270px; height: 40px; }
+  #profcv { position: absolute; inset: 0; width: 100%; height: 100%; display: block; border-radius: 4px; }
+  #scrub {
+    position: absolute; inset: 0; margin: 0; width: 100%; height: 100%;
+    -webkit-appearance: none; appearance: none; background: transparent;
+    outline: none; cursor: pointer;
+  }
+  #scrub::-webkit-slider-runnable-track { background: transparent; height: 100%; }
+  #scrub::-moz-range-track { background: transparent; height: 100%; }
+  #scrub::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 3px; height: 40px; border-radius: 1px;
+    background: var(--ink); cursor: pointer; box-shadow: 0 0 4px rgba(0,0,0,0.5);
+  }
+  #scrub::-moz-range-thumb {
+    width: 3px; height: 40px; border: 0; border-radius: 1px;
+    background: var(--ink); cursor: pointer;
+  }
+  #scrub:focus-visible { outline: 1px solid var(--ink-3); outline-offset: 2px; }
 
   #figures {
     position: fixed; z-index: 3; right: 20px; top: 60px;
@@ -243,6 +439,12 @@
   </div>
 
   <div id="top-right">
+    <div id="source-wrapper" class="panel">
+      <select id="source-select" aria-label="Select data source">
+        <option value="a">Option A (GTFS)</option>
+        <option value="b">Option B (OSM)</option>
+      </select>
+    </div>
     <button id="theme-toggle" class="panel" aria-label="Toggle theme">
       <span id="theme-label">Light</span>
     </button>
@@ -587,6 +789,7 @@ const miniClockTime = miniClockEl ? miniClockEl.querySelector(".mc-time") : null
 const miniClockRunning = miniClockEl ? miniClockEl.querySelector(".mc-running") : null;
 const trackingBadge = document.getElementById("tracking-badge");
 const netSub = document.getElementById("net-sub");
+const sourceSelect = document.getElementById("source-select");
 const dayBtns = document.querySelectorAll("#days button[data-day]");
 const themeToggle = document.getElementById("theme-toggle");
 const themeLabel = document.getElementById("theme-label");
@@ -624,6 +827,7 @@ const toggleFootprints = document.getElementById("toggle-footprints");
 let trainData = null;
 let geoData = null;
 let currentDay = "wed";
+let currentDataSource = "a";
 let dayCache = {};
 let isPlaying = true;
 let simSeconds = 28800; // start at 08:00
@@ -1017,8 +1221,9 @@ async function loadDay(dayKey) {
     b.setAttribute("aria-pressed", b.getAttribute("data-day") === dayKey ? "true" : "false");
   });
 
-  if (dayCache[dayKey]) {
-    trainData = dayCache[dayKey];
+  const cacheKey = `${dayKey}-${currentDataSource}`;
+  if (dayCache[cacheKey]) {
+    trainData = dayCache[cacheKey];
     trackedTrip = null;
     trackingBadge.setAttribute("data-on", "false");
     initUI();
@@ -1026,12 +1231,13 @@ async function loadDay(dayKey) {
   }
 
   loadingEl.removeAttribute("hidden");
-  loadingEl.textContent = `Loading ${dayKey.toUpperCase()} timetable...`;
+  loadingEl.textContent = `Loading ${dayKey.toUpperCase()} timetable (${currentDataSource === 'b' ? 'OSM' : 'GTFS'})...`;
 
   try {
-    const res = await fetch(`data/sweden-trains-${dayKey}.json`);
+    const suffix = currentDataSource === 'b' ? '-osm' : '';
+    const res = await fetch(`data/sweden-trains-${dayKey}${suffix}.json`);
     const data = await res.json();
-    dayCache[dayKey] = data;
+    dayCache[cacheKey] = data;
     trainData = data;
     trackedTrip = null;
     trackingBadge.setAttribute("data-on", "false");
@@ -1041,6 +1247,32 @@ async function loadDay(dayKey) {
     console.error("Failed to load day:", e);
     loadingEl.textContent = "Error loading timetable for selected day.";
   }
+}
+
+async function loadDataSource(source) {
+  if (source === currentDataSource && geoData) return;
+  currentDataSource = source;
+  const suffix = source === "b" ? "-osm" : "";
+  
+  loadingEl.removeAttribute("hidden");
+  loadingEl.textContent = `Switching to Data ${source === "b" ? "Option B (OSM High-Precision)" : "Option A (GTFS)"}...`;
+  
+  try {
+    const geoRes = await fetch(`data/sweden-geo${suffix}.json`);
+    geoData = await geoRes.json();
+    
+    await loadDay(currentDay);
+    loadingEl.setAttribute("hidden", "true");
+  } catch (e) {
+    console.error("Failed to switch data source:", e);
+    loadingEl.textContent = "Error switching data source.";
+  }
+}
+
+if (sourceSelect) {
+  sourceSelect.addEventListener("change", (e) => {
+    loadDataSource(e.target.value);
+  });
 }
 
 dayBtns.forEach(btn => {
@@ -1193,8 +1425,8 @@ function render(now) {
     });
   }
 
-  // 3. Draw Dense Urban City Footprints (Strictly clipped to Land boundary)
-  if (userSettings.showFootprints && geoData && geoData.city_limits && geoData.outline) {
+  // 3. Draw Multi-Tier Real Satellite Urban Footprints (Semi-Urban Outer Buffer + Core)
+  if (userSettings.showFootprints && geoData && geoData.outline) {
     mapCtx.save();
     mapCtx.beginPath();
     geoData.outline.forEach(ring => {
@@ -1209,11 +1441,31 @@ function render(now) {
     });
     mapCtx.clip();
 
+    // 3A. Semi-Urban Metropolitan Fringe (Fainter outer shade)
+    const semiUrban = geoData.semi_urban || [];
+    if (semiUrban.length > 0) {
+      mapCtx.fillStyle = currentTheme === "dark" ? "rgba(255, 255, 255, 0.02)" : "rgba(0, 0, 0, 0.025)";
+      semiUrban.forEach(ring => {
+        if (ring.length < 3) return;
+        mapCtx.beginPath();
+        const p0 = project(ring[0][0], ring[0][1]);
+        mapCtx.moveTo(p0.x, p0.y);
+        for (let i = 1; i < ring.length; i++) {
+          const p = project(ring[i][0], ring[i][1]);
+          mapCtx.lineTo(p.x, p.y);
+        }
+        mapCtx.closePath();
+        mapCtx.fill();
+      });
+    }
+
+    // 3B. Dense Core Urban Footprints (Real Satellite Contours)
+    const coreUrban = geoData.core_urban || geoData.city_limits || [];
     mapCtx.fillStyle = PAL.hex.cityFill;
     mapCtx.strokeStyle = PAL.hex.cityLine;
-    mapCtx.lineWidth = 0.6;
+    mapCtx.lineWidth = 0.55;
 
-    geoData.city_limits.forEach(ring => {
+    coreUrban.forEach(ring => {
       if (ring.length < 3) return;
       mapCtx.beginPath();
       const p0 = project(ring[0][0], ring[0][1]);
@@ -1519,7 +1771,7 @@ async function init() {
 
     const trainRes = await fetch("data/sweden-trains-wed.json");
     trainData = await trainRes.json();
-    dayCache["wed"] = trainData;
+    dayCache["wed-a"] = trainData;
 
     initUI();
     loadingEl.setAttribute("hidden", "true");
