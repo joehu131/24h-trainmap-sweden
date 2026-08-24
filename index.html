@@ -182,12 +182,14 @@
   #zoom-controls button svg { display: block; }
 
   /* Settings Popup Modal */
-  #settings-modal {
+  #settings-modal { display: contents; }
+  #settings-modal[data-open="false"] .settings-card { display: none; }
+  #settings-modal[data-open="true"] .settings-card { display: block; }
+  .settings-card {
     position: fixed; z-index: 7; right: 62px; bottom: 85px;
-    width: 290px; padding: 14px 16px; display: none;
+    width: 290px; padding: 14px 16px;
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
   }
-  #settings-modal[data-open="true"] { display: block; }
   .modal-hdr {
     display: flex; justify-content: space-between; align-items: center;
     margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--rule);
@@ -442,22 +444,28 @@
   .spd { display: flex; gap: 4px; }
   .spd button { padding: 5px 9px; font-family: "IBM Plex Mono", monospace; font-size: 0.76rem; }
 
-  #profile { position: relative; width: 270px; height: 40px; }
-  #profcv { position: absolute; inset: 0; width: 100%; height: 100%; display: block; border-radius: 4px; }
+  #profile {
+    position: relative; width: 270px; height: 40px;
+    touch-action: none; user-select: none; -webkit-user-select: none;
+    cursor: ew-resize;
+  }
+  #profcv { position: absolute; inset: 0; width: 100%; height: 100%; display: block; border-radius: 4px; pointer-events: none; }
   #scrub {
     position: absolute; inset: 0; margin: 0; width: 100%; height: 100%;
     -webkit-appearance: none; appearance: none; background: transparent;
-    outline: none; cursor: pointer; touch-action: manipulation;
+    outline: none; cursor: ew-resize; touch-action: none;
   }
   #scrub::-webkit-slider-runnable-track { background: transparent; height: 100%; }
   #scrub::-moz-range-track { background: transparent; height: 100%; }
   #scrub::-webkit-slider-thumb {
-    -webkit-appearance: none; width: 4px; height: 40px; border-radius: 2px;
-    background: var(--ink); cursor: pointer; box-shadow: 0 0 4px rgba(0,0,0,0.5);
+    -webkit-appearance: none; width: 14px; height: 38px; border-radius: 3px;
+    background: var(--ink); cursor: ew-resize;
+    box-shadow: 0 0 6px rgba(0,0,0,0.5), inset 0 0 0 4px var(--panel);
   }
   #scrub::-moz-range-thumb {
-    width: 4px; height: 40px; border: 0; border-radius: 2px;
-    background: var(--ink); cursor: pointer;
+    width: 14px; height: 38px; border: 0; border-radius: 3px;
+    background: var(--ink); cursor: ew-resize;
+    box-shadow: 0 0 6px rgba(0,0,0,0.5), inset 0 0 0 4px var(--panel);
   }
   #scrub:focus-visible { outline: 1px solid var(--ink-3); outline-offset: 2px; }
 
@@ -588,7 +596,7 @@
     }
 
     /* Modals & Drawers: Full native bottom sheet styling */
-    #operator-modal, #station-modal, #settings-modal, #legend-modal {
+    #operator-modal, #station-modal, #legend-modal {
       position: fixed; z-index: 8; inset: 0;
       background: rgba(0, 0, 0, 0.6);
       backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
@@ -596,7 +604,6 @@
     }
     #operator-modal[data-open="true"],
     #station-modal[data-open="true"],
-    #settings-modal[data-open="true"],
     #legend-modal[data-open="true"] {
       display: flex;
     }
@@ -608,8 +615,25 @@
       padding: 16px 16px calc(16px + env(safe-area-inset-bottom)) !important;
       box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.5) !important;
     }
+
+    /* Settings Modal on Mobile (Slightly narrower card centered above bottom safe area) */
     #settings-modal {
-      right: auto; bottom: auto; width: 100%; padding: 0;
+      position: fixed; z-index: 8; inset: 0;
+      background: rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+      display: none; align-items: flex-end; justify-content: center;
+      padding: 0 14px calc(14px + env(safe-area-inset-bottom));
+    }
+    #settings-modal[data-open="true"] { display: flex; }
+    #settings-modal .settings-card {
+      width: 100% !important; max-width: 380px !important;
+      border-radius: 14px !important;
+      padding: 16px !important;
+      max-height: 80svh !important;
+      overflow-y: auto;
+      display: block !important;
+      position: static !important;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5) !important;
     }
 
     /* Mobile Legend Sheet */
@@ -709,50 +733,52 @@
     </button>
   </div>
 
-  <div id="settings-modal" class="panel" data-open="false">
-    <div class="modal-hdr">
-      <h2>Display Settings</h2>
-      <button id="settings-close" aria-label="Close settings">&times;</button>
-    </div>
-    <div class="modal-body">
-      <div class="setting-row">
-        <label for="track-opacity">Railway tracks opacity</label>
-        <div class="ctl-wrap">
-          <input id="track-opacity" type="range" min="0" max="100" step="5" value="12">
-          <span id="track-val" class="val-lbl">12%</span>
+  <div id="settings-modal" data-open="false">
+    <div class="panel modal-card settings-card">
+      <div class="modal-hdr">
+        <h2>Display Settings</h2>
+        <button id="settings-close" aria-label="Close settings">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="setting-row">
+          <label for="track-opacity">Railway tracks opacity</label>
+          <div class="ctl-wrap">
+            <input id="track-opacity" type="range" min="0" max="100" step="5" value="12">
+            <span id="track-val" class="val-lbl">12%</span>
+          </div>
         </div>
-      </div>
-      <div class="setting-row">
-        <label for="train-size">Train dot size</label>
-        <div class="ctl-wrap">
-          <input id="train-size" type="range" min="60" max="180" step="10" value="100">
-          <span id="size-val" class="val-lbl">1.0&times;</span>
+        <div class="setting-row">
+          <label for="train-size">Train dot size</label>
+          <div class="ctl-wrap">
+            <input id="train-size" type="range" min="60" max="180" step="10" value="100">
+            <span id="size-val" class="val-lbl">1.0&times;</span>
+          </div>
         </div>
-      </div>
-      <div class="setting-row">
-        <label for="trail-length">Train trail length</label>
-        <div class="ctl-wrap">
-          <input id="trail-length" type="range" min="40" max="200" step="10" value="100">
-          <span id="trail-val" class="val-lbl">1.0&times;</span>
+        <div class="setting-row">
+          <label for="trail-length">Train trail length</label>
+          <div class="ctl-wrap">
+            <input id="trail-length" type="range" min="40" max="200" step="10" value="100">
+            <span id="trail-val" class="val-lbl">1.0&times;</span>
+          </div>
         </div>
-      </div>
-      <div class="setting-row">
-        <label for="toggle-cities">City labels & stations</label>
-        <input id="toggle-cities" type="checkbox" checked>
-      </div>
-      <div class="setting-row">
-        <label for="toggle-footprints">Dense city footprints</label>
-        <input id="toggle-footprints" type="checkbox" checked>
-      </div>
-      <div class="setting-row">
-        <label for="toggle-density">Traffic density heatmap</label>
-        <input id="toggle-density" type="checkbox">
-      </div>
-      <div class="setting-row" id="urban-opacity-row">
-        <label for="urban-opacity">Urban opacity</label>
-        <div class="ctl-wrap">
-          <input id="urban-opacity" type="range" min="10" max="100" step="5" value="40">
-          <span id="urban-val" class="val-lbl">40%</span>
+        <div class="setting-row">
+          <label for="toggle-cities">City labels & stations</label>
+          <input id="toggle-cities" type="checkbox" checked>
+        </div>
+        <div class="setting-row">
+          <label for="toggle-footprints">Dense city footprints</label>
+          <input id="toggle-footprints" type="checkbox" checked>
+        </div>
+        <div class="setting-row">
+          <label for="toggle-density">Traffic density heatmap</label>
+          <input id="toggle-density" type="checkbox">
+        </div>
+        <div class="setting-row" id="urban-opacity-row">
+          <label for="urban-opacity">Urban opacity</label>
+          <div class="ctl-wrap">
+            <input id="urban-opacity" type="range" min="10" max="100" step="5" value="40">
+            <span id="urban-val" class="val-lbl">40%</span>
+          </div>
         </div>
       </div>
     </div>
@@ -1308,6 +1334,14 @@ settingsClose.addEventListener("click", () => {
   settingsModal.setAttribute("data-open", "false");
 });
 
+if (settingsModal) {
+  settingsModal.addEventListener("click", (e) => {
+    if (e.target === settingsModal) {
+      settingsModal.setAttribute("data-open", "false");
+    }
+  });
+}
+
 if (stModalClose) {
   stModalClose.addEventListener("click", () => {
     stationModal.setAttribute("data-open", "false");
@@ -1735,14 +1769,20 @@ function buildDensityGrid() {
 
 function findClosestStation(clientX, clientY) {
   if (!userSettings.showCities) return null;
+  // Require zooming in before allowing station timetable selection to prevent accidental taps on country overview
+  if (view.zoom < 1.6) return null;
+
   const rect = mapCanvas.getBoundingClientRect();
   const mx = clientX - rect.left;
   const my = clientY - rect.top;
 
   let closest = null;
-  let minD = window.innerWidth <= 820 ? 26 : 18;
+  let minD = window.innerWidth <= 820 ? 24 : 16;
 
   CONFIG.cities.forEach(([name, lat, lon, tier]) => {
+    if (tier === 2 && view.zoom < 1.8) return;
+    if (tier === 3 && view.zoom < 3.2) return;
+
     const p = project(lon, lat);
     const d = Math.hypot(p.x - mx, p.y - my);
     if (d < minD) {
@@ -2603,9 +2643,46 @@ playBtn.addEventListener("click", () => {
   playBtn.setAttribute("aria-pressed", isPlaying ? "true" : "false");
 });
 
+const profileEl = document.getElementById("profile");
+
+function setTimeFromPointer(clientX) {
+  if (!profileEl) return;
+  const rect = profileEl.getBoundingClientRect();
+  const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+  simSeconds = Math.round(ratio * 86399);
+  scrub.value = simSeconds;
+  if (stationModal && stationModal.getAttribute("data-open") === "true") {
+    renderStationBoard();
+  }
+}
+
+let isScrubbing = false;
+
+if (profileEl) {
+  profileEl.addEventListener("pointerdown", (e) => {
+    isScrubbing = true;
+    try { profileEl.setPointerCapture(e.pointerId); } catch (_) {}
+    setTimeFromPointer(e.clientX);
+  });
+
+  profileEl.addEventListener("pointermove", (e) => {
+    if (!isScrubbing) return;
+    setTimeFromPointer(e.clientX);
+  });
+
+  const endScrub = (e) => {
+    if (isScrubbing) {
+      isScrubbing = false;
+      try { profileEl.releasePointerCapture(e.pointerId); } catch (_) {}
+    }
+  };
+  profileEl.addEventListener("pointerup", endScrub);
+  profileEl.addEventListener("pointercancel", endScrub);
+}
+
 scrub.addEventListener("input", (e) => {
   simSeconds = parseInt(e.target.value, 10);
-  if (stationModal.getAttribute("data-open") === "true") {
+  if (stationModal && stationModal.getAttribute("data-open") === "true") {
     renderStationBoard();
   }
 });
