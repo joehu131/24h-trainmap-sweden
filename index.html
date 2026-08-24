@@ -271,9 +271,24 @@
   .st-tab.active {
     background: rgba(128, 128, 128, 0.16); color: var(--ink); border-color: var(--rule); font-weight: 500;
   }
-  .st-board-list {
+  .st-board-list, .operator-list {
     overflow-y: auto; max-height: 52vh; display: flex; flex-direction: column; gap: 4px;
-    padding-right: 4px;
+    padding-right: 6px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--rule) transparent;
+  }
+  .st-board-list::-webkit-scrollbar, .operator-list::-webkit-scrollbar {
+    width: 5px;
+  }
+  .st-board-list::-webkit-scrollbar-track, .operator-list::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .st-board-list::-webkit-scrollbar-thumb, .operator-list::-webkit-scrollbar-thumb {
+    background: var(--rule);
+    border-radius: 4px;
+  }
+  .st-board-list::-webkit-scrollbar-thumb:hover, .operator-list::-webkit-scrollbar-thumb:hover {
+    background: var(--ink-3);
   }
   .st-row {
     display: flex; align-items: center; justify-content: space-between;
@@ -1134,6 +1149,7 @@ if (stTabDep) {
     currentStationTab = "dep";
     stTabDep.classList.add("active");
     stTabArr.classList.remove("active");
+    lastStationBoardMinute = -1;
     renderStationBoard();
   });
 }
@@ -1142,6 +1158,7 @@ if (stTabArr) {
     currentStationTab = "arr";
     stTabArr.classList.add("active");
     stTabDep.classList.remove("active");
+    lastStationBoardMinute = -1;
     renderStationBoard();
   });
 }
@@ -1561,6 +1578,8 @@ function findClosestStation(clientX, clientY) {
   return closest;
 }
 
+let lastStationBoardMinute = -1;
+
 function openStationBoard(station) {
   selectedStation = station;
   const formattedName = station.name.endsWith(" C") || station.name.endsWith(" Central") 
@@ -1568,14 +1587,28 @@ function openStationBoard(station) {
     : `${station.name} Central`;
   stName.textContent = formattedName;
   stationModal.setAttribute("data-open", "true");
+  lastStationBoardMinute = -1;
   renderStationBoard();
+}
+
+function updateStationBoardLive() {
+  if (!selectedStation || !trainData) return;
+  const currentMin = Math.floor(simSeconds / 60);
+  const hStr = String(Math.floor(simSeconds / 3600)).padStart(2, "0");
+  const mStr = String(Math.floor((simSeconds % 3600) / 60)).padStart(2, "0");
+  stTime.textContent = `Clock: ${hStr}:${mStr}`;
+
+  if (currentMin !== lastStationBoardMinute) {
+    lastStationBoardMinute = currentMin;
+    renderStationBoard();
+  }
 }
 
 function renderStationBoard() {
   if (!selectedStation || !trainData || !trainData.trips) return;
   const h = Math.floor(simSeconds / 3600);
   const m = Math.floor((simSeconds % 3600) / 60);
-  stTime.textContent = `Simulation Time: ${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+  stTime.textContent = `Clock: ${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 
   const stLat = selectedStation.lat;
   const stLon = selectedStation.lon;
@@ -1616,12 +1649,16 @@ function renderStationBoard() {
     }
 
     if (eventTime !== null) {
-      if ((currentStationTab === "dep" && isDep) || (currentStationTab === "arr" && isArr)) {
-        matches.push({
-          trip: tr,
-          time: eventTime,
-          diff: (eventTime - simSeconds + DAY_SECONDS) % DAY_SECONDS
-        });
+      const diff = eventTime - simSeconds;
+      // Filter out departures and arrivals that have already happened
+      if (diff >= -10) {
+        if ((currentStationTab === "dep" && isDep) || (currentStationTab === "arr" && isArr)) {
+          matches.push({
+            trip: tr,
+            time: eventTime,
+            diff
+          });
+        }
       }
     }
   });
@@ -1630,7 +1667,7 @@ function renderStationBoard() {
 
   stBoardList.innerHTML = "";
   if (matches.length === 0) {
-    stBoardList.innerHTML = `<div class="st-empty">No ${currentStationTab === "dep" ? "departures" : "arrivals"} found for active filters.</div>`;
+    stBoardList.innerHTML = `<div class="st-empty">No upcoming ${currentStationTab === "dep" ? "departures" : "arrivals"} remaining today.</div>`;
     return;
   }
 
@@ -2230,6 +2267,10 @@ function render(now) {
   for (const k in activeCounts) {
     const el = document.getElementById(`cnt-${k}`);
     if (el) el.textContent = activeCounts[k];
+  }
+
+  if (stationModal && stationModal.getAttribute("data-open") === "true") {
+    updateStationBoardLive();
   }
 
   requestAnimationFrame(render);
