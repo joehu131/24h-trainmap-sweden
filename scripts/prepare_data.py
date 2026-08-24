@@ -250,33 +250,45 @@ ROUTE_NAME_RULES = {
     'malartag': 'regional',
 }
 
-def classify_train(agency_name, route_short_name, route_long_name, trip_headsign):
-    combined = f"{agency_name} {route_short_name} {route_long_name} {trip_headsign}".lower()
+def classify_train(agency_name, route_short_name, route_long_name, trip_name_or_num):
+    agency_low = (agency_name or '').lower()
+    comb = f"{agency_name} {route_short_name} {route_long_name}".lower()
 
-    if any(k in combined for k in ['nattåg', 'nattag', 'euronight', 'night train']):
+    if any(k in comb for k in ['arlanda express', 'mtrx', 'mtr express', 'vr snabb']):
+        return 'highspeed'
+
+    if any(k in comb for k in ['nattåg', 'nattag', 'euronight', 'night train']):
         return 'night'
 
-    if any(k in combined for k in ['x 2000', 'x2000', 'sj 3000', 'sj 2000', 'snabbtåg', 'snabbtag', 'arlanda express', 'vr snabbtåg', 'mtrx']):
-        return 'highspeed'
+    if 'öresundståg' in comb or 'oresundstag' in comb or agency_name == '110':
+        return 'intercity'
+    if 'snälltåget' in comb or 'snalltaget' in comb:
+        return 'intercity'
+    if 'tågab' in comb or 'tagab' in comb:
+        return 'intercity'
 
-    if 'sj' in combined and ('snabbtåg' in combined or 'x2000' in combined or 'sj 3000' in combined):
-        return 'highspeed'
-
-    for op_key, category in OPERATOR_RULES.items():
-        if op_key.lower() in combined:
-            if category == 'intercity' and 'natt' in combined:
+    if 'sj' in agency_low:
+        num = None
+        try:
+            num = int(trip_name_or_num)
+        except (ValueError, TypeError):
+            pass
+        if num is not None:
+            if num in (1, 2, 91, 92, 93, 94, 95, 96, 97, 98, 3900, 3901, 3902, 3903):
                 return 'night'
-            return category
+            if (400 <= num <= 699) or (50 <= num <= 89) or (100 <= num <= 199) or (10400 <= num <= 10699):
+                return 'highspeed'
+            if (20 <= num <= 49) or (200 <= num <= 299) or (10200 <= num <= 10299):
+                return 'intercity'
+        return 'regional'
 
-    for route_key, category in ROUTE_NAME_RULES.items():
-        if route_key.lower() in combined:
-            return category
-
-    if 'intercity' in combined or 'sj intercity' in combined or 'ic' in route_short_name.lower().split():
-        return 'intercity'
-
-    if 'sj' in agency_name.lower():
-        return 'intercity'
+    if 'vy' in agency_low:
+        num = None
+        try: num = int(trip_name_or_num)
+        except: pass
+        if num is not None and num in (91, 92, 93, 94, 95, 96):
+            return 'night'
+        return 'regional'
 
     return 'regional'
 
@@ -552,15 +564,16 @@ def process_gtfs_full_week(zip_path, start_date_str="20260831"):
                     if shape_id:
                         needed_shape_ids.add(shape_id)
 
+                    train_name = row.get('trip_short_name') or row.get('samtrafiken_internal_trip_number') or r_info['short_name'] or t_id[-4:]
+                    if not train_name or train_name.strip() == '':
+                        train_name = f"Train {t_id[-4:]}"
+
                     cls = classify_train(
                         r_info['agency_name'],
                         r_info['short_name'],
                         r_info['long_name'],
-                        row.get('trip_headsign', '')
+                        train_name
                     )
-                    train_name = row.get('trip_short_name') or row.get('samtrafiken_internal_trip_number') or r_info['short_name'] or t_id[-4:]
-                    if not train_name or train_name.strip() == '':
-                        train_name = f"Train {t_id[-4:]}"
 
                     all_trips_meta[t_id] = {
                         'route_id': r_id,

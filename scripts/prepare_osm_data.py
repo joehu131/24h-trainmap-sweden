@@ -163,8 +163,57 @@ def route_osm_track(p1, p2):
                 
     return [p1, p2]
 
-# 5. Generate all 7-day timetables with clean train IDs & OSM Centerlines
-print("\n--- Generating Full 7-Day Timetables with OSM Track Centerlines ---")
+# 5. Accurate Swedish Train Categorization Function
+def categorize_swedish_train(agency_name, short_name, long_name, trip_id_or_num):
+    agency_low = (agency_name or '').lower()
+    comb = f"{agency_name} {short_name} {long_name}".lower()
+
+    # 1. High Speed operators
+    if 'arlanda express' in comb or 'mtrx' in comb or 'mtr express' in comb or 'vr snabb' in comb:
+        return 'highspeed'
+
+    # 2. Explicit Night Trains
+    if 'nattåg' in comb or 'nattag' in comb:
+        return 'night'
+
+    # 3. InterCity operators
+    if 'öresundståg' in comb or 'oresundstag' in comb or agency_name == '110':
+        return 'intercity'
+    if 'snälltåget' in comb or 'snalltaget' in comb:
+        return 'intercity'
+    if 'tågab' in comb or 'tagab' in comb:
+        return 'intercity'
+
+    # 4. SJ AB specifics based on train number series
+    if 'sj' in agency_low:
+        num = None
+        try:
+            num = int(trip_id_or_num)
+        except (ValueError, TypeError):
+            pass
+        if num is not None:
+            # Night trains: 1-2 (Berlin/Hamburg), 91-98 (Luleå/Narvik), 3900-3903
+            if num in (1, 2, 91, 92, 93, 94, 95, 96, 97, 98, 3900, 3901, 3902, 3903):
+                return 'night'
+            # SJ Snabbtåg (X2000 / SJ 3000): 400-699, 50-89, 100-199, 10400-10699, 10500-10699
+            if (400 <= num <= 699) or (50 <= num <= 89) or (100 <= num <= 199) or (10400 <= num <= 10699):
+                return 'highspeed'
+            # SJ InterCity: 20-49, 200-299, 10200-10299
+            if (20 <= num <= 49) or (200 <= num <= 299) or (10200 <= num <= 10299):
+                return 'intercity'
+        return 'regional'
+
+    # 5. Vy Tåg specifics
+    if 'vy' in agency_low:
+        num = None
+        try: num = int(trip_id_or_num)
+        except: pass
+        if num is not None and num in (91, 92, 93, 94, 95, 96):
+            return 'night'
+        return 'regional'
+
+    # 6. Default regional operators (SL, Pågatåg, Mälartåg, Västtrafik, TiB, Krösatågen, Norrtåg, Östgötapendeln, etc.)
+    return 'regional'
 
 def clean_station_name(name):
     for suffix in [" Centralstation", " central", " station", " resecentrum", " tågstation", " Jvstn", " C"]:
@@ -189,37 +238,44 @@ def parse_time_to_seconds(time_str):
         return h * 3600 + m * 60 + s
     return None
 
-OPERATOR_RULES = {
-    'snälltåget': 'intercity',
-    'snalltaget': 'intercity',
-    'arlanda express': 'highspeed',
-    'mälartåg': 'regional',
-    'malartag': 'regional',
-    'pågatåg': 'regional',
-    'pagatag': 'regional',
-    'öresundståg': 'intercity',
-    'oresundstag': 'intercity',
-    'krösatågen': 'regional',
-    'krosatagen': 'regional',
-    'tåg i bergslagen': 'regional',
-    'västtrafik': 'regional',
-    'vasttrafik': 'regional',
-    'sj snabbtåg': 'highspeed',
-    'sj nattåg': 'night',
-    'vy nattåget': 'night',
-    'vy tåg': 'regional',
-    'norrtåg': 'regional',
-    'norrtag': 'regional',
-    'inlandsbanan': 'regional'
-}
-
 all_weekly_corridors = []
+
+def rdp_simplify(pts, epsilon=0.0018):
+    """Ramer-Douglas-Peucker algorithm for curve simplification (preserving sharp bends & lake curves)."""
+    if len(pts) <= 2:
+        return pts
+    p1, p2 = pts[0], pts[-1]
+    dx = p2[0] - p1[0]
+    dy = p2[1] - p1[1]
+    norm = math.hypot(dx, dy)
+    dmax = 0.0
+    index = 0
+    for i in range(1, len(pts) - 1):
+        if norm == 0:
+            d = math.hypot(pts[i][0] - p1[0], pts[i][1] - p1[1])
+        else:
+            d = abs(dy * pts[i][0] - dx * pts[i][1] + p2[0]*p1[1] - p2[1]*p1[0]) / norm
+        if d > dmax:
+            index = i
+            dmax = d
+    if dmax > epsilon:
+        r1 = rdp_simplify(pts[:index+1], epsilon)
+        r2 = rdp_simplify(pts[index:], epsilon)
+        return r1[:-1] + r2
+    else:
+        return [p1, p2]
+
+# 6. Generate Full 7-Day Timetables (Option B: Full OSM & Option C: Compact RDP OSM)
+print("\n--- Generating Full 7-Day Timetables (Option B & Option C) ---")
 
 with zipfile.ZipFile(ZIP_PATH, 'r') as z:
     agencies = {}
     with z.open('agency.txt') as f:
         for r in csv.DictReader(f.read().decode('utf-8-sig').splitlines()):
-            agencies[r['agency_id']] = r['agency_name']
+            a_name = r['agency_name'].strip()
+            if a_name == '110' or r.get('agency_id') == '500000000000000110':
+                a_name = 'Öresundståg'
+            agencies[r['agency_id']] = a_name
 
     rail_routes = {}
     with z.open('routes.txt') as f:
@@ -228,22 +284,24 @@ with zipfile.ZipFile(ZIP_PATH, 'r') as z:
                 agency = agencies.get(r.get('agency_id', ''), '')
                 comb = f"{agency} {r.get('route_short_name', '')} {r.get('route_long_name', '')}".lower()
                 if 'ersättning' not in comb and 'ersattning' not in comb:
-                    cls = 'regional'
-                    for k, v in OPERATOR_RULES.items():
-                        if k in comb:
-                            cls = v
-                            break
-                    if cls == 'regional' and ('x2000' in comb or 'sj 3000' in comb or 'snabbtåg' in comb):
-                        cls = 'highspeed'
-                    elif cls == 'regional' and ('intercity' in comb or 'ic' in comb):
-                        cls = 'intercity'
-                    rail_routes[r['route_id']] = (agency or 'Tåg', cls)
+                    rail_routes[r['route_id']] = (agency or 'Tåg', r.get('route_short_name', ''), r.get('route_long_name', ''))
 
     stops = {}
     with z.open('stops.txt') as f:
         for r in csv.DictReader(f.read().decode('utf-8-sig').splitlines()):
             try:
-                stops[r['stop_id']] = (round(float(r['stop_lon']), 4), round(float(r['stop_lat']), 4), r['stop_name'])
+                s_id = r['stop_id']
+                s_name = r['stop_name']
+                lon = float(r['stop_lon'])
+                lat = float(r['stop_lat'])
+
+                # 1. Coordinate Sanitizer: Fix known upstream GTFS typos
+                if 'Väse' in s_name or 'Vse' in s_name or s_id == '9022050000287004':
+                    lon, lat = 13.7845, 59.3995
+
+                # 2. Geographic Boundary Sanitizer: Sweden/Nordic rail bounds
+                if 54.0 <= lat <= 71.5 and 8.0 <= lon <= 26.0:
+                    stops[s_id] = (round(lon, 4), round(lat, 4), s_name)
             except ValueError:
                 continue
 
@@ -252,9 +310,10 @@ with zipfile.ZipFile(ZIP_PATH, 'r') as z:
         for r in csv.DictReader(f.read().decode('utf-8-sig').splitlines()):
             rid = r['route_id']
             if rid in rail_routes:
-                op, cls = rail_routes[rid]
+                op, r_short, r_long = rail_routes[rid]
                 raw_name = r.get('trip_short_name') or r.get('trip_headsign') or r.get('samtrafiken_internal_trip_number') or r['trip_id']
                 clean_name = clean_trip_id(raw_name)
+                cls = categorize_swedish_train(op, r_short, r_long, clean_name)
                 
                 all_trips_meta[r['trip_id']] = {
                     'route_id': rid,
@@ -325,7 +384,8 @@ with zipfile.ZipFile(ZIP_PATH, 'r') as z:
             if is_active:
                 active_trips.append(tid)
 
-        trips_out = []
+        trips_out_b = []
+        trips_out_c = []
         category_counts = defaultdict(int)
 
         for tid in active_trips:
@@ -334,16 +394,31 @@ with zipfile.ZipFile(ZIP_PATH, 'r') as z:
             if len(st_list) < 2:
                 continue
 
-            stops_with_times = []
+            raw_stops_with_times = []
             for seq, s_id, t in st_list:
                 if s_id in stops and t is not None:
                     lon, lat, _ = stops[s_id]
-                    stops_with_times.append((lon, lat, t))
+                    raw_stops_with_times.append((lon, lat, t))
+
+            if len(raw_stops_with_times) < 2:
+                continue
+
+            # Speed Anomaly Rejection: Filter out impossible speed jumps (> 350 km/h)
+            stops_with_times = [raw_stops_with_times[0]]
+            for next_st in raw_stops_with_times[1:]:
+                prev_st = stops_with_times[-1]
+                dt = next_st[2] - prev_st[2]
+                d_deg = math.hypot(next_st[0] - prev_st[0], next_st[1] - prev_st[1])
+                if dt > 0:
+                    speed_kmh = (d_deg * 111.0) / (dt / 3600.0)
+                    if speed_kmh > 350.0 and d_deg > 0.5:
+                        continue
+                stops_with_times.append(next_st)
 
             if len(stops_with_times) < 2:
                 continue
 
-            pts = []
+            raw_pts = []
             for i in range(len(stops_with_times) - 1):
                 p1 = (stops_with_times[i][0], stops_with_times[i][1])
                 p2 = (stops_with_times[i+1][0], stops_with_times[i+1][1])
@@ -368,51 +443,96 @@ with zipfile.ZipFile(ZIP_PATH, 'r') as z:
                     frac = (cum_dists[k] / total_d) if total_d > 0 else (k / float(len(segment)))
                     t = int(t1 + dt * frac)
                     if 0 <= t < 86400:
-                        pts.append([round(segment[k][0], 4), round(segment[k][1], 4), t])
+                        raw_pts.append([round(segment[k][0], 4), round(segment[k][1], 4), t])
 
             last_lon, last_lat, last_t = stops_with_times[-1]
             if 0 <= last_t < 86400:
-                pts.append([round(last_lon, 4), round(last_lat, 4), int(last_t)])
+                raw_pts.append([round(last_lon, 4), round(last_lat, 4), int(last_t)])
 
-            if len(pts) >= 2:
+            if len(raw_pts) >= 2:
+                # Option B points: 200m downsampling
+                pts_b = [raw_pts[0]]
+                for pt in raw_pts[1:-1]:
+                    prev = pts_b[-1]
+                    if (pt[2] - prev[2] >= 20) or math.hypot(pt[0] - prev[0], pt[1] - prev[1]) >= 0.002:
+                        pts_b.append(pt)
+                pts_b.append(raw_pts[-1])
+
+                # Option C points: RDP curve simplification (~200m tolerance)
+                pts_c = rdp_simplify(raw_pts, epsilon=0.0018)
+
                 cls = trip_meta['cls']
                 category_counts[cls] += 1
                 origin_name = stops.get(st_list[0][1], (0, 0, ''))[2]
                 dest_name = stops.get(st_list[-1][1], (0, 0, ''))[2]
 
-                trips_out.append({
+                clean_from = clean_station_name(origin_name)
+                clean_to = clean_station_name(dest_name)
+
+                trips_out_b.append({
                     "id": trip_meta['name'],
                     "op": trip_meta['op'],
                     "cls": cls,
-                    "from": clean_station_name(origin_name),
-                    "to": clean_station_name(dest_name),
-                    "pts": pts
+                    "from": clean_from,
+                    "to": clean_to,
+                    "pts": pts_b
+                })
+
+                trips_out_c.append({
+                    "id": trip_meta['name'],
+                    "op": trip_meta['op'],
+                    "cls": cls,
+                    "from": clean_from,
+                    "to": clean_to,
+                    "pts": pts_c
                 })
                 
-                all_weekly_corridors.append([(p[0], p[1]) for p in pts])
+                all_weekly_corridors.append([(p[0], p[1]) for p in pts_b])
 
-        out_data = {
+        # Save Option B
+        out_b = {
             "date": formatted_date,
             "weekday": weekday_name,
             "counts": category_counts,
-            "trips": trips_out
+            "trips": trips_out_b
         }
+        out_fname_b = f"sweden-trains-{short_name}-osm.json"
+        out_fpath_b = os.path.join(DATA_DIR, out_fname_b)
+        with open(out_fpath_b, 'w', encoding='utf-8') as f:
+            json.dump(out_b, f, separators=(',', ':'))
 
-        out_fname = f"sweden-trains-{short_name}-osm.json"
-        out_fpath = os.path.join(DATA_DIR, out_fname)
-        with open(out_fpath, 'w', encoding='utf-8') as f:
-            json.dump(out_data, f)
+        # Save Option C (Compact RDP)
+        out_c = {
+            "date": formatted_date,
+            "weekday": weekday_name,
+            "counts": category_counts,
+            "trips": trips_out_c
+        }
+        out_fname_c = f"sweden-trains-{short_name}-compact.json"
+        out_fpath_c = os.path.join(DATA_DIR, out_fname_c)
+        with open(out_fpath_c, 'w', encoding='utf-8') as f:
+            json.dump(out_c, f, separators=(',', ':'))
 
-        print(f"  {formatted_date} ({weekday_name}): {len(trips_out)} trips -> {out_fname} ({os.path.getsize(out_fpath)/1024/1024:.1f} MB)")
+        sz_b = os.path.getsize(out_fpath_b) / 1024 / 1024
+        sz_c = os.path.getsize(out_fpath_c) / 1024 / 1024
+        print(f"  {formatted_date} ({weekday_name}): {len(trips_out_b)} trips -> Opt B: {sz_b:.1f} MB | Opt C (RDP Compact): {sz_c:.2f} MB [HS: {category_counts['highspeed']}, IC: {category_counts['intercity']}, Reg: {category_counts['regional']}, Night: {category_counts['night']}]")
 
-# 6. Build sweden-geo-osm.json with Active Tracks and Multi-Tier Urban Footprints
-print("\n--- Generating Clean data/sweden-geo-osm.json ---")
+# 7. Build sweden-geo.json with Active OSM Tracks and Realistic Geographic Urban Footprints
+print("\n--- Generating Clean data/sweden-geo.json ---")
 with open(os.path.join(DATA_DIR, "sweden-geo.json"), 'r', encoding='utf-8') as f:
     base_geo = json.load(f)
 
-# Load real satellite urban areas
-core_urban = base_geo.get("core_urban", [])
-semi_urban = base_geo.get("semi_urban", [])
+osm_landuse_path = os.path.join(DATA_DIR, "osm", "sweden-urban-osm-landuse.json")
+if os.path.exists(osm_landuse_path):
+    with open(osm_landuse_path, 'r', encoding='utf-8') as f:
+        osm_landuse = json.load(f)
+    core_urban = osm_landuse.get('core_urban', [])
+    semi_urban = osm_landuse.get('semi_urban', [])
+else:
+    core_urban = []
+    semi_urban = []
+
+print(f"Loaded {len(core_urban)} true OpenStreetMap urban landuse polygons.")
 
 grid_edges = set()
 track_segments = []
@@ -486,8 +606,8 @@ geo_osm = {
     "tracks": clean_osm_tracks
 }
 
-with open(os.path.join(DATA_DIR, "sweden-geo-osm.json"), 'w', encoding='utf-8') as f:
+with open(os.path.join(DATA_DIR, "sweden-geo.json"), 'w', encoding='utf-8') as f:
     json.dump(geo_osm, f, separators=(',', ':'))
 
-print(f"Saved data/sweden-geo-osm.json ({len(clean_osm_tracks)} active clean curved tracks, {len(core_urban)} urban footprints, {os.path.getsize(os.path.join(DATA_DIR, 'sweden-geo-osm.json'))/1024:.1f} KB).")
-print("\n=== Option B Generation Completed Successfully! ===")
+print(f"Saved data/sweden-geo.json ({len(clean_osm_tracks)} active clean curved tracks, {len(core_urban)} urban footprints, {os.path.getsize(os.path.join(DATA_DIR, 'sweden-geo.json'))/1024:.1f} KB).")
+print("\n=== Generation Completed Successfully! ===")

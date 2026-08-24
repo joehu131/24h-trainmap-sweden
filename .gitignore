@@ -10,8 +10,8 @@ venv/
 *.zip
 data/*.zip
 data/osm/
-data/*.json.gz
 data/*-osm.json
+archived-data/
 
 # IDE & OS
 .DS_Store
