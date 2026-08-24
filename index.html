@@ -245,11 +245,6 @@
   }
   .op-filter-btn:hover { background: rgba(128, 128, 128, 0.16); color: var(--ink); }
   .op-badge { font-family: "IBM Plex Mono", monospace; font-size: 0.68rem; opacity: 0.8; }
-  #settings-close {
-    background: transparent; border: 0; color: var(--ink-3); font-size: 1.1rem;
-    line-height: 1; padding: 2px 4px; cursor: pointer; border-radius: 4px;
-  }
-  #settings-close:hover { color: var(--ink); background: rgba(128, 128, 128, 0.15); }
   .modal-body { display: flex; flex-direction: column; gap: 11px; }
   .setting-row {
     display: flex; justify-content: space-between; align-items: center;
@@ -628,7 +623,18 @@ const userSettings = {
 
 try {
   const saved = JSON.parse(localStorage.getItem("rail_settings") || "{}");
-  Object.assign(userSettings, saved);
+  if (saved && typeof saved === "object") {
+    if (typeof saved.trackOpacity === "number") userSettings.trackOpacity = Math.max(0, Math.min(100, saved.trackOpacity));
+    if (typeof saved.trainScale === "number") userSettings.trainScale = Math.max(0.5, Math.min(2.5, saved.trainScale));
+    if (typeof saved.trailScale === "number") userSettings.trailScale = Math.max(0.4, Math.min(2.0, saved.trailScale));
+    if (typeof saved.showCities === "boolean") userSettings.showCities = saved.showCities;
+    if (typeof saved.showFootprints === "boolean") {
+      userSettings.showFootprints = saved.showFootprints;
+    } else if (saved.urbanStyle !== undefined) {
+      userSettings.showFootprints = saved.urbanStyle !== "none";
+    }
+    if (typeof saved.urbanOpacity === "number") userSettings.urbanOpacity = Math.max(10, Math.min(100, saved.urbanOpacity));
+  }
 } catch(e) {}
 
 const PALETTES = {
@@ -1277,6 +1283,22 @@ function renderOperatorList(opMap) {
   updateOpBadge();
 }
 
+function aliasOperator(raw) {
+  if (!raw) return "Tåg";
+  const name = String(raw).trim();
+  if (name === "110" || name === "500000000000000110") return "Öresundståg";
+  if (name === "AB SL Kundtjänst" || name.startsWith("SL ")) return "SL";
+  if (name === "X-Trafik Kundtjänst") return "X-Trafik";
+  if (name === "Vy Tåg AB") return "Vy Tåg";
+  if (name.startsWith("Krösatåg") || name.startsWith("Krösa ")) return "Krösatågen";
+  if (name === "SJ AB") return "SJ";
+  if (name === "MTR Express AB" || name === "MTR Express") return "MTRX";
+  if (name === "Norrtåg AB") return "Norrtåg";
+  if (name === "Pågatåg") return "Pågatågen";
+  if (name === "Tåg i Bergslagen AB") return "Tåg i Bergslagen";
+  return name;
+}
+
 function initUI() {
   legendRows.innerHTML = "";
   for (const k in CONFIG.classes) {
@@ -1316,10 +1338,8 @@ function initUI() {
   // Operator extraction
   const opMap = {};
   trainData.trips.forEach(tr => {
-    let opName = (tr.op || "Tåg").trim();
-    if (opName === "110" || opName === "500000000000000110") opName = "Öresundståg";
-    tr.op = opName;
-    opMap[opName] = (opMap[opName] || 0) + 1;
+    tr.op = aliasOperator(tr.op);
+    opMap[tr.op] = (opMap[tr.op] || 0) + 1;
   });
   availableOperators = Object.keys(opMap).sort((a, b) => opMap[b] - opMap[a]);
   if (activeOperators.size === 0) {
@@ -1859,7 +1879,7 @@ function render(now) {
 
 function updateTooltipContent(trip, pos) {
   const conf = CONFIG.classes[trip.cls] || CONFIG.classes.regional;
-  const operator = trip.op || "Swedish Rail";
+  const operator = aliasOperator(trip.op) || "Swedish Rail";
   const routeStr = (trip.from && trip.to) ? `${trip.from} → ${trip.to}` : "";
 
   tooltip.querySelector(".tn").textContent = trip.id;

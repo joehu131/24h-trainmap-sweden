@@ -97,6 +97,7 @@ AllTrainsInADay_SWE/
 │   ├── sweden-trains-sat.json # Saturday schedule (2,336 trips)
 │   └── sweden-trains-sun.json # Sunday schedule (2,297 trips)
 └── scripts/
+    ├── build_all.py           # Master build pipeline (runs OSM, urban mass, and gzip steps)
     ├── prepare_osm_data.py    # Main GTFS parser and OSM railway track snap router
     ├── build_top25_final.py   # Top 25 cohesive urban mass builder (550m buffer dissolve)
     └── prepare_deploy.py      # Gzip compression pipeline for deployment
@@ -133,21 +134,13 @@ To obtain an API key:
 
 ## Data Pipeline & Rebuilding
 
-The dataset uses GTFS (General Transit Feed Specification) Sweden 3 from Trafiklab.se and OpenStreetMap (OSM) railway ways.
+To rebuild the entire data pipeline with a single command:
 
-To rebuild the data pipeline:
+```bash
+python scripts/build_all.py
+```
 
-1. **Extract OSM Track Curves & Build Timetables**:
-   ```bash
-   python scripts/prepare_osm_data.py
-   ```
-
-2. **Generate Top 25 Cohesive Urban Masses**:
-   ```bash
-   python scripts/build_top25_final.py
-   ```
-
-3. **Compress Deployment Assets**:
-   ```bash
-   python scripts/prepare_deploy.py
-   ```
+This master script executes three sequential steps:
+1. **Extract OSM Track Curves & Build Timetables** (`prepare_osm_data.py`)
+2. **Generate Top 25 Cohesive Urban Masses** (`build_top25_final.py`)
+3. **Compress Deployment Assets** (`prepare_deploy.py`)
