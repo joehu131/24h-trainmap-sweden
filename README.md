@@ -48,20 +48,24 @@ An interactive 24-hour visualization of passenger train movements across Sweden.
 
 ---
 
+## Timetable Coverage
+
+The simulation covers the full 7-day representative week from **August 31, 2026 to September 6, 2026** (Monday through Sunday), capturing full service variations between weekday commuter peaks and weekend schedules.
+
+---
+
 ## Key Features
 
-| Feature | Description |
-| :--- | :--- |
-| **High-Precision OSM Tracks** | All 10,686 physical railway track segments extracted from OpenStreetMap, with trains smoothly routed along realistic switch curves. |
-| **Top 25 Cohesive Urban Masses** | 550-meter buffer-dissolved urban footprints for Sweden's 25 largest cities (+ Oslo and Copenhagen), naturally conforming to coastlines and islands. |
-| **Carrier & Operator Filter** | Interactive modal dialog to filter traffic by specific train operators (SJ, MTRX, Vy, Pågatåg, Öresundståg, etc.). |
-| **Category Toggle Buttons** | Quick one-click category toggles in the bottom legend (High-Speed, Intercity, Regional, Night). |
-| **7-Day Timetable Switcher** | Full Monday to Sunday schedule switching with service day variations. |
-| **Interactive Tracking Mode** | Hover to highlight route lines with origin and destination. Click any train dot to lock tracking mode. |
-| **Smooth Pan & Zoom** | Multi-touch, mouse wheel, and button zoom (0.8x to 16.0x) with pan constraints. |
-| **Dynamic Viewport Clock** | Large northern clock when zoomed out, automatically transitioning to a floating mini-clock card when panning away. |
-| **Display Settings Controls** | Sliders for railway track opacity, train dot scale, trail length, and urban footprint opacity (10% to 100%). |
-| **Light & Dark Modes** | High-contrast dark theme and warm cartographic light theme with WCAG (Web Content Accessibility Guidelines) AA compliance. |
+- **High-Precision OSM Tracks**: 10,686 physical railway track segments extracted from OpenStreetMap.
+- **Top 25 Urban Footprints**: Solid, cohesive city centers for Sweden's 25 largest cities (+ Oslo and Copenhagen).
+- **Carrier & Operator Filtering**: Isolate traffic by specific train operators (SJ, MTRX, Vy, Pågatåg, Öresundståg, etc.).
+- **Category Toggles**: Filter by High-Speed, Intercity, Regional, or Night trains directly from the legend.
+- **7-Day Timetable Switcher**: Seamlessly switch between all seven days of the week.
+- **Interactive Tracking**: Click any train dot to lock camera tracking and view live route details.
+- **Smooth Pan & Zoom**: Multi-touch and wheel zooming from 0.8x to 16.0x.
+- **Dynamic Clock**: Lapland map clock transitioning to a floating mini-clock when panning.
+- **Display Settings**: Adjust track opacity, train dot size, trail length, and urban footprint opacity.
+- **Light & Dark Themes**: Fully switchable theme modes.
 
 ---
 
@@ -69,11 +73,11 @@ An interactive 24-hour visualization of passenger train movements across Sweden.
 
 | Category | Color | Included Services |
 | :--- | :--- | :--- |
-| **High-Speed** | `#0066d6` (Light) / `#5aa9ff` (Dark) | SJ Snabbtåg (X2000, SJ 3000), VR Snabbtåg, MTRX, Arlanda Express |
-| **Intercity** | `#d84500` (Light) / `#ff7a45` (Dark) | SJ InterCity, Öresundståg, Snälltåget, Tågab |
-| **Regional** | `#028e5a` (Light) / `#35d69a` (Dark) | Mälartåg, Pågatåg, Västtågen, Krösatågen, TiB (Tåg i Bergslagen), Norrtåg, Värmlandstrafik, SL Pendeltåg |
-| **Night Trains** | `#b87b00` (Light) / `#ffd93d` (Dark) | SJ Nattåg, Vy Nattåg, EuroNight |
-| **Cross-Border** | Muted Grey | Foreign route extensions into Norway (Oslo, Narvik) and Denmark (Copenhagen) |
+| **High-Speed** | Blue | SJ Snabbtåg (X2000, SJ 3000), VR Snabbtåg, MTRX, Arlanda Express |
+| **Intercity** | Orange | SJ InterCity, Öresundståg, Snälltåget, Tågab |
+| **Regional** | Green | Mälartåg, Pågatåg, Västtågen, Krösatågen, TiB (Tåg i Bergslagen), Norrtåg, Värmlandstrafik, SL Pendeltåg |
+| **Night Trains** | Yellow | SJ Nattåg, Vy Nattåg, EuroNight |
+| **Cross-Border** | Muted Grey | Connecting routes into Norway (Oslo, Narvik) and Denmark (Copenhagen) |
 
 ---
 
@@ -83,12 +87,11 @@ An interactive 24-hour visualization of passenger train movements across Sweden.
 AllTrainsInADay_SWE/
 ├── index.html                 # Complete single-page application (Canvas + UI)
 ├── .github/workflows/
-│   └── deploy.yml             # GitHub Actions automated deployment workflow
+│   └── deploy.yml             # GitHub Actions deployment workflow
 ├── data/
 │   ├── sweden-geo.json        # Coastlines, lakes, Top 25 urban footprints, 10,686 tracks
 │   ├── sweden-geo.json.gz     # Gzip deployment asset (316 KB)
 │   ├── sweden-trains-mon.json # Monday schedule (3,320 trips)
-│   ├── sweden-trains-mon.json.gz # Gzip Monday schedule (859 KB)
 │   ├── sweden-trains-tue.json # Tuesday schedule (3,320 trips)
 │   ├── sweden-trains-wed.json # Wednesday schedule (3,320 trips)
 │   ├── sweden-trains-thu.json # Thursday schedule (3,326 trips)
@@ -98,7 +101,7 @@ AllTrainsInADay_SWE/
 └── scripts/
     ├── prepare_osm_data.py    # Main GTFS parser and OSM railway track snap router
     ├── build_top25_final.py   # Top 25 cohesive urban mass builder (550m buffer dissolve)
-    └── prepare_deploy.py      # Gzip compression pipeline for GitHub Pages
+    └── prepare_deploy.py      # Gzip compression pipeline for deployment
 ```
 
 ---
@@ -112,6 +115,8 @@ python -m http.server 8000
 ```
 
 Open `http://localhost:8000` in your web browser.
+
+---
 
 ## Environment Setup & API Keys
 
@@ -148,17 +153,3 @@ To rebuild the data pipeline:
    ```bash
    python scripts/prepare_deploy.py
    ```
-
----
-
-## Deployment Guide (GitHub Pages)
-
-This project includes an automated GitHub Actions deployment workflow in `.github/workflows/deploy.yml`.
-
-### Enabling GitHub Pages:
-1. Push your repository to GitHub.
-2. Go to your repository **Settings** on GitHub.
-3. In the left sidebar, click **Pages** (under the "Code and automation" section).
-4. Under **Build and deployment** $\rightarrow$ **Source**, select **GitHub Actions**.
-5. When code is pushed to the `main` branch, the workflow will automatically deploy the site.
-6. Your live site will be published at `https://<username>.github.io/<repository-name>/`.
