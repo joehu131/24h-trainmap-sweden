@@ -50,22 +50,20 @@ An interactive 24-hour visualization of passenger train movements across Sweden.
 
 ## Timetable Coverage
 
-The simulation covers the full 7-day representative week from **August 31, 2026 to September 6, 2026** (Monday through Sunday), capturing full service variations between weekday commuter peaks and weekend schedules.
+The simulation covers the full 7-day week from **August 31, 2026 to September 6, 2026** (Monday through Sunday), capturing service variations between weekday commuter peaks and weekend schedules.
 
 ---
 
 ## Key Features
 
 - **High-Precision OSM Tracks**: 10,686 physical railway track segments extracted from OpenStreetMap.
-- **Top 25 Urban Footprints**: Solid, cohesive city centers for Sweden's 25 largest cities (+ Oslo and Copenhagen).
-- **Carrier & Operator Filtering**: Isolate traffic by specific train operators (SJ, MTRX, Vy, Pågatåg, Öresundståg, etc.).
-- **Category Toggles**: Filter by High-Speed, Intercity, Regional, or Night trains directly from the legend.
-- **7-Day Timetable Switcher**: Seamlessly switch between all seven days of the week.
+- **Top 25 Urban Footprints**: City centers for Sweden's 25 largest cities.
+- **Filtering**: Isolate traffic by specific train operators (SJ, MTRX, Vy, Pågatåg, Öresundståg, etc.).
+- **Toggles**: Filter by High-Speed, Intercity, Regional, or Night trains from the legend.
+- **7-Day Timetable**: Switch between all seven days of the week.
 - **Interactive Tracking**: Click any train dot to lock camera tracking and view live route details.
 - **Smooth Pan & Zoom**: Multi-touch and wheel zooming from 0.8x to 16.0x.
-- **Dynamic Clock**: Lapland map clock transitioning to a floating mini-clock when panning.
 - **Display Settings**: Adjust track opacity, train dot size, trail length, and urban footprint opacity.
-- **Light & Dark Themes**: Fully switchable theme modes.
 
 ---
 
