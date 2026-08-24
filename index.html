@@ -743,8 +743,8 @@
         <div class="setting-row">
           <label for="track-opacity">Railway tracks opacity</label>
           <div class="ctl-wrap">
-            <input id="track-opacity" type="range" min="0" max="100" step="5" value="12">
-            <span id="track-val" class="val-lbl">12%</span>
+            <input id="track-opacity" type="range" min="0" max="100" step="5" value="50">
+            <span id="track-val" class="val-lbl">50%</span>
           </div>
         </div>
         <div class="setting-row">
@@ -876,7 +876,7 @@ let currentTheme = localStorage.getItem("rail_theme") || "dark";
 document.documentElement.setAttribute("data-theme", currentTheme);
 
 const userSettings = {
-  trackOpacity: 12,
+  trackOpacity: 50,
   trainScale: 1.0,
   trailScale: 1.0,
   showCities: true,
@@ -1775,18 +1775,19 @@ function buildDensityGrid() {
 
 function findClosestStation(clientX, clientY) {
   if (!userSettings.showCities) return null;
-  // Require zooming in before allowing station timetable selection to prevent accidental taps on country overview
-  if (view.zoom < 2.2) return null;
+  const isMobile = window.innerWidth <= 820;
+  // On mobile devices, require zooming in before allowing station selection to prevent accidental taps
+  if (isMobile && view.zoom < 3.2) return null;
 
   const rect = mapCanvas.getBoundingClientRect();
   const mx = clientX - rect.left;
   const my = clientY - rect.top;
 
   let closest = null;
-  let minD = window.innerWidth <= 820 ? 24 : 16;
+  let minD = isMobile ? 24 : 16;
 
   CONFIG.cities.forEach(([name, lat, lon, tier]) => {
-    if (tier === 2 && view.zoom < 1.8) return;
+    if (tier === 2 && view.zoom < (isMobile ? 3.2 : 1.8)) return;
     if (tier === 3 && view.zoom < 3.2) return;
 
     const p = project(lon, lat);
@@ -2544,12 +2545,16 @@ function updateTooltipContent(trip, pos, speedKmh) {
 
 function findClosestTrain(clientX, clientY) {
   if (!trainData || !trainData.trips) return null;
+  const isMobile = window.innerWidth <= 820;
+  // On mobile devices, require zooming in before allowing train tracking selection to prevent accidental taps
+  if (isMobile && view.zoom < 3.2) return null;
+
   const rect = mapCanvas.getBoundingClientRect();
   const mx = clientX - rect.left;
   const my = clientY - rect.top;
 
   let closest = null;
-  let minD = window.innerWidth <= 820 ? 32 : 24;
+  let minD = isMobile ? 32 : 24;
 
   trainData.trips.forEach(tr => {
     if (!activeCategories.has(tr.cls)) return;
