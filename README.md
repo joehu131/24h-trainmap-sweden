@@ -8,23 +8,27 @@ An interactive 24-hour visualization of passenger train movements across Sweden.
                       DATA INGESTION PIPELINE
                      
  ┌──────────────────────┐        ┌─────────────────────────┐
- │ Trafiklab GTFS       │        │ Natural Earth 10m       │
- │ Sweden 3 Archive     │        │ Boundaries & Lakes      │
+ │ Trafiklab GTFS       │        │ OpenStreetMap (OSM)     │
+ │ Sweden 3 Archive     │        │ High-Precision Tracks   │
  └──────────┬───────────┘        └────────────┬────────────┘
             │                                 │
             ▼                                 ▼
  ┌──────────────────────┐        ┌─────────────────────────┐
- │ scripts/prepare_data │        │ scripts/prepare_geo.py  │
- │ - Filter rail routes │        │ - Coastlines (41 polys) │
- │ - Match shapes.txt   │        │ - 65 Swedish lakes      │
- │ - Corridor routing   │        │ - 44 Urban footprints   │
- └──────────┬───────────┘        │ - Continuous tracks     │
-            │                    └────────────┬────────────┘
+ │ prepare_osm_data.py  │        │ build_top25_final.py    │
+ │ - Clean train series │        │ - Top 25 city centers   │
+ │ - Snap to OSM tracks │        │ - 550m buffer dissolve  │
+ │ - Coordinate filters │        │ - 10,686 physical rails │
+ └──────────┬───────────┘        └────────────┬────────────┘
+            │                                 │
             ▼                                 ▼
    sweden-trains-*.json               sweden-geo.json
-   (Mon - Sun schedules)              (Map vector layers)
+   (3,320 weekday trips)              (Tracks & urban masses)
             │                                 │
             └────────────────┬────────────────┘
+                             │
+                             ▼
+                    prepare_deploy.py
+                    (Gzip Compression: 28.1 MB -> 5.7 MB)
                              │
                              ▼
                     CLIENT APPLICATION
@@ -32,10 +36,12 @@ An interactive 24-hour visualization of passenger train movements across Sweden.
                      index.html
              ┌─────────────────────────┐
              │ Animation Loop (60 FPS) │
-             │ ├─ Continuous head/tail │
-             │ ├─ Canvas 2D map layers │
+             │ ├─ Curved trail paths   │
+             │ ├─ Operator filtering   │
+             │ ├─ Category filtering   │
              │ ├─ Smooth zoom & pan    │
              │ ├─ Interactive tracking │
+             │ ├─ Urban opacity slider │
              │ └─ Viewport mini-clock  │
              └─────────────────────────┘
 ```
@@ -46,15 +52,16 @@ An interactive 24-hour visualization of passenger train movements across Sweden.
 
 | Feature | Description |
 | :--- | :--- |
-| **Curved Track Geometry** | Train movements follow physical track shapes (*shapes.txt*) and railway corridors around lakes and coastlines. |
-| **Lake & Island Cartography** | 65 major Swedish lakes (Vänern, Vättern, Mälaren, Hjälmaren, Siljan) and island coastlines rendered in high resolution. |
+| **High-Precision OSM Tracks** | All 10,686 physical railway track segments extracted from OpenStreetMap, with trains smoothly routed along realistic switch curves. |
+| **Top 25 Cohesive Urban Masses** | 550-meter buffer-dissolved urban footprints for Sweden's 25 largest cities (+ Oslo and Copenhagen), naturally conforming to coastlines and islands. |
+| **Carrier & Operator Filter** | Interactive modal dialog to filter traffic by specific train operators (SJ, MTRX, Vy, Pågatåg, Öresundståg, etc.). |
+| **Category Toggle Buttons** | Quick one-click category toggles in the bottom legend (High-Speed, Intercity, Regional, Night). |
 | **7-Day Timetable Switcher** | Full Monday to Sunday schedule switching with service day variations. |
-| **Interactive Tracking Mode** | Hover to highlight full route lines with origin and destination. Click any train dot to lock tracking mode. |
-| **Smooth Pan & Zoom** | Multi-touch, wheel, and button zoom (up to 6.0x) with pan boundary constraints. |
-| **3-Tier Level of Detail** | Geographic labels scale dynamically: national hubs (Tier 1), regional junctions (Tier 2), and local station stops (Tier 3). |
-| **Dynamic Viewport Clock** | Large Lapland clock when zoomed out, automatically transitioning to a floating mini-clock card when panning away. |
-| **Custom Display Settings** | Adjust railway track opacity, train dot radius, trail length, and toggle urban footprints or city labels. |
-| **Light and Dark Modes** | High-contrast dark theme and warm cartographic light theme with WCAG AA compliance. |
+| **Interactive Tracking Mode** | Hover to highlight route lines with origin and destination. Click any train dot to lock tracking mode. |
+| **Smooth Pan & Zoom** | Multi-touch, mouse wheel, and button zoom (0.8x to 16.0x) with pan constraints. |
+| **Dynamic Viewport Clock** | Large northern clock when zoomed out, automatically transitioning to a floating mini-clock card when panning away. |
+| **Display Settings Controls** | Sliders for railway track opacity, train dot scale, trail length, and urban footprint opacity (10% to 100%). |
+| **Light & Dark Modes** | High-contrast dark theme and warm cartographic light theme with WCAG (Web Content Accessibility Guidelines) AA compliance. |
 
 ---
 
@@ -63,8 +70,8 @@ An interactive 24-hour visualization of passenger train movements across Sweden.
 | Category | Color | Included Services |
 | :--- | :--- | :--- |
 | **High-Speed** | `#0066d6` (Light) / `#5aa9ff` (Dark) | SJ Snabbtåg (X2000, SJ 3000), VR Snabbtåg, MTRX, Arlanda Express |
-| **Intercity** | `#d84500` (Light) / `#ff7a45` (Dark) | SJ InterCity, Vy Tåg, Snälltåget, Øresundståg |
-| **Regional** | `#028e5a` (Light) / `#35d69a` (Dark) | Mälartåg, Pågatågen, Västtågen, Krösatågen, TiB (Tåg i Bergslagen), Norrtåg |
+| **Intercity** | `#d84500` (Light) / `#ff7a45` (Dark) | SJ InterCity, Öresundståg, Snälltåget, Tågab |
+| **Regional** | `#028e5a` (Light) / `#35d69a` (Dark) | Mälartåg, Pågatåg, Västtågen, Krösatågen, TiB (Tåg i Bergslagen), Norrtåg, Värmlandstrafik, SL Pendeltåg |
 | **Night Trains** | `#b87b00` (Light) / `#ffd93d` (Dark) | SJ Nattåg, Vy Nattåg, EuroNight |
 | **Cross-Border** | Muted Grey | Foreign route extensions into Norway (Oslo, Narvik) and Denmark (Copenhagen) |
 
@@ -75,18 +82,23 @@ An interactive 24-hour visualization of passenger train movements across Sweden.
 ```
 AllTrainsInADay_SWE/
 ├── index.html                 # Complete single-page application (Canvas + UI)
+├── .github/workflows/
+│   └── deploy.yml             # GitHub Actions automated deployment workflow
 ├── data/
-│   ├── sweden-geo.json        # Coastlines, islands, lakes, footprints, tracks (318 KB)
-│   ├── sweden-trains-mon.json # Monday timetable with curved paths (2,958 trips)
-│   ├── sweden-trains-tue.json # Tuesday timetable (2,963 trips)
-│   ├── sweden-trains-wed.json # Wednesday timetable (2,960 trips)
-│   ├── sweden-trains-thu.json # Thursday timetable (2,965 trips)
-│   ├── sweden-trains-fri.json # Friday timetable (2,978 trips)
-│   ├── sweden-trains-sat.json # Saturday timetable (1,960 trips)
-│   └── sweden-trains-sun.json # Sunday timetable (1,967 trips)
+│   ├── sweden-geo.json        # Coastlines, lakes, Top 25 urban footprints, 10,686 tracks
+│   ├── sweden-geo.json.gz     # Gzip deployment asset (316 KB)
+│   ├── sweden-trains-mon.json # Monday schedule (3,320 trips)
+│   ├── sweden-trains-mon.json.gz # Gzip Monday schedule (859 KB)
+│   ├── sweden-trains-tue.json # Tuesday schedule (3,320 trips)
+│   ├── sweden-trains-wed.json # Wednesday schedule (3,320 trips)
+│   ├── sweden-trains-thu.json # Thursday schedule (3,326 trips)
+│   ├── sweden-trains-fri.json # Friday schedule (3,328 trips)
+│   ├── sweden-trains-sat.json # Saturday schedule (2,336 trips)
+│   └── sweden-trains-sun.json # Sunday schedule (2,297 trips)
 └── scripts/
-    ├── prepare_data.py        # GTFS parser and corridor curve generator
-    └── prepare_geo.py         # Boundary, lake, footprint, and track generator
+    ├── prepare_osm_data.py    # Main GTFS parser and OSM railway track snap router
+    ├── build_top25_final.py   # Top 25 cohesive urban mass builder (550m buffer dissolve)
+    └── prepare_deploy.py      # Gzip compression pipeline for GitHub Pages
 ```
 
 ---
@@ -96,25 +108,57 @@ AllTrainsInADay_SWE/
 Start a local HTTP (Hypertext Transfer Protocol) server:
 
 ```bash
-cd AllTrainsInADay_SWE
 python -m http.server 8000
 ```
 
 Open `http://localhost:8000` in your web browser.
 
+## Environment Setup & API Keys
+
+If you want to fetch or refresh the raw GTFS (General Transit Feed Specification) feed from Trafiklab, create a `.env` file in the project root:
+
+```bash
+# .env
+TRAFIKLAB_API_KEY="your_trafiklab_api_key_here"
+```
+
+To obtain an API key:
+1. Register for a free account at [Trafiklab.se](https://www.trafiklab.se/).
+2. Create an API project for **GTFS Sverige 3** (operator feed) and copy your project API key.
+
 ---
 
-## Data Ingestion & Updates
+## Data Pipeline & Rebuilding
 
-The dataset uses GTFS (General Transit Feed Specification) Sweden 3 from Trafiklab.se.
+The dataset uses GTFS (General Transit Feed Specification) Sweden 3 from Trafiklab.se and OpenStreetMap (OSM) railway ways.
 
 To rebuild the data pipeline:
 
-1. **Process Timetables**:
+1. **Extract OSM Track Curves & Build Timetables**:
    ```bash
-   python scripts/prepare_data.py
+   python scripts/prepare_osm_data.py
    ```
-2. **Build Geographic Layers**:
+
+2. **Generate Top 25 Cohesive Urban Masses**:
    ```bash
-   python scripts/prepare_geo.py
+   python scripts/build_top25_final.py
    ```
+
+3. **Compress Deployment Assets**:
+   ```bash
+   python scripts/prepare_deploy.py
+   ```
+
+---
+
+## Deployment Guide (GitHub Pages)
+
+This project includes an automated GitHub Actions deployment workflow in `.github/workflows/deploy.yml`.
+
+### Enabling GitHub Pages:
+1. Push your repository to GitHub.
+2. Go to your repository **Settings** on GitHub.
+3. In the left sidebar, click **Pages** (under the "Code and automation" section).
+4. Under **Build and deployment** $\rightarrow$ **Source**, select **GitHub Actions**.
+5. When code is pushed to the `main` branch, the workflow will automatically deploy the site.
+6. Your live site will be published at `https://<username>.github.io/<repository-name>/`.
