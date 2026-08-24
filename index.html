@@ -245,6 +245,66 @@
   }
   .op-filter-btn:hover { background: rgba(128, 128, 128, 0.16); color: var(--ink); }
   .op-badge { font-family: "IBM Plex Mono", monospace; font-size: 0.68rem; opacity: 0.8; }
+
+  /* Station Departures Modal */
+  #station-modal {
+    position: fixed; z-index: 8; inset: 0;
+    display: none; place-items: center;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+  }
+  #station-modal[data-open="true"] { display: grid; }
+  .station-card {
+    width: 440px; max-width: 92vw; max-height: 82vh;
+    display: flex; flex-direction: column;
+    padding: 16px; box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+  }
+  .st-time-lbl {
+    font-family: "IBM Plex Mono", monospace; font-size: 0.70rem; color: var(--highspeed); font-weight: 500;
+  }
+  .st-tabs {
+    display: flex; gap: 6px; margin-bottom: 10px; border-bottom: 1px solid var(--rule); padding-bottom: 8px;
+  }
+  .st-tab {
+    padding: 4px 11px; font-size: 0.72rem; border-radius: 4px; border: 1px solid transparent; cursor: pointer;
+  }
+  .st-tab.active {
+    background: rgba(128, 128, 128, 0.16); color: var(--ink); border-color: var(--rule); font-weight: 500;
+  }
+  .st-board-list {
+    overflow-y: auto; max-height: 52vh; display: flex; flex-direction: column; gap: 4px;
+    padding-right: 4px;
+  }
+  .st-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 6px 9px; border-radius: 5px; font-size: 0.73rem;
+    background: rgba(128, 128, 128, 0.05); border: 1px solid rgba(128, 128, 128, 0.08);
+    cursor: pointer; transition: all 0.12s ease;
+  }
+  .st-row:hover {
+    background: rgba(128, 128, 128, 0.14); border-color: var(--rule);
+  }
+  .st-time {
+    font-family: "IBM Plex Mono", monospace; font-weight: 600; font-size: 0.78rem;
+    color: var(--ink); min-width: 44px;
+  }
+  .st-train-info {
+    flex: 1; margin: 0 10px; display: flex; flex-direction: column; gap: 2px; min-width: 0;
+  }
+  .st-dest {
+    color: var(--ink); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .st-sub {
+    font-size: 0.65rem; color: var(--ink-3); font-family: "IBM Plex Mono", monospace;
+  }
+  .st-cat-badge {
+    font-size: 0.62rem; padding: 2px 6px; border-radius: 4px; font-weight: 500;
+    text-transform: uppercase; letter-spacing: 0.04em; white-space: nowrap;
+  }
+  .st-empty {
+    text-align: center; padding: 24px; font-size: 0.74rem; color: var(--ink-3);
+  }
+
   .modal-body { display: flex; flex-direction: column; gap: 11px; }
   .setting-row {
     display: flex; justify-content: space-between; align-items: center;
@@ -270,11 +330,6 @@
   }
   .setting-row input[type="checkbox"] {
     accent-color: var(--highspeed); cursor: pointer; width: 14px; height: 14px;
-  }
-  .panel-select {
-    background: var(--panel); border: 1px solid var(--rule); border-radius: 5px;
-    color: var(--ink); font-family: inherit; font-size: 0.72rem; padding: 3px 6px;
-    outline: none; cursor: pointer;
   }
 
   /* Center Map Clock in Lapland */
@@ -411,7 +466,13 @@
     transition: opacity 0.12s;
   }
   #tooltip[data-on="true"] { opacity: 1; }
+  #tooltip .tn-wrap { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
   #tooltip .tn { font-weight: 600; color: var(--ink); font-size: 0.82rem; }
+  #tooltip .spd-badge {
+    font-family: "IBM Plex Mono", monospace; font-size: 0.68rem; font-weight: 600;
+    padding: 1px 6px; border-radius: 4px; background: rgba(128, 128, 128, 0.18);
+    color: var(--ink); letter-spacing: 0.02em;
+  }
   #tooltip .route {
     color: var(--highspeed); font-size: 0.75rem; font-weight: 500;
     margin: 3px 0 2px; font-family: "IBM Plex Mono", monospace;
@@ -539,6 +600,10 @@
         <label for="toggle-footprints">Dense city footprints</label>
         <input id="toggle-footprints" type="checkbox" checked>
       </div>
+      <div class="setting-row">
+        <label for="toggle-density">Traffic density heatmap</label>
+        <input id="toggle-density" type="checkbox">
+      </div>
       <div class="setting-row" id="urban-opacity-row">
         <label for="urban-opacity">Urban opacity</label>
         <div class="ctl-wrap">
@@ -564,6 +629,23 @@
     </div>
   </div>
 
+  <div id="station-modal" data-open="false">
+    <div class="panel modal-card station-card">
+      <div class="modal-hdr">
+        <div>
+          <h2 id="st-name" style="font-size:0.86rem;">Station Departures</h2>
+          <span id="st-time" class="st-time-lbl">08:00</span>
+        </div>
+        <button id="st-modal-close" aria-label="Close station board">&times;</button>
+      </div>
+      <div class="st-tabs">
+        <button id="st-tab-dep" class="st-tab active">Departures</button>
+        <button id="st-tab-arr" class="st-tab">Arrivals</button>
+      </div>
+      <div id="st-board-list" class="st-board-list"></div>
+    </div>
+  </div>
+
   <div id="hint">Scroll for legend and controls<span>&#8964;</span></div>
 </div>
 
@@ -575,7 +657,7 @@
       <span>Filter by Operator</span>
       <span id="op-badge" class="op-badge">All</span>
     </button>
-    <footer id="legend-note">Click a category or operator to filter the map in real time.</footer>
+    <footer id="legend-note">Click a category, operator, or station on the map.</footer>
   </div>
 
   <aside id="figures" class="panel" aria-label="Trains by category"></aside>
@@ -597,7 +679,10 @@
 </div>
 
 <div id="tooltip">
-  <div class="tn"></div>
+  <div class="tn-wrap">
+    <span class="tn"></span>
+    <span class="spd-badge"></span>
+  </div>
   <div class="route"></div>
   <div class="th"></div>
   <div class="op"></div>
@@ -618,7 +703,8 @@ const userSettings = {
   trailScale: 1.0,
   showCities: true,
   showFootprints: true,
-  urbanOpacity: 40 // percentage
+  urbanOpacity: 40, // percentage
+  showDensity: false
 };
 
 try {
@@ -634,6 +720,7 @@ try {
       userSettings.showFootprints = saved.urbanStyle !== "none";
     }
     if (typeof saved.urbanOpacity === "number") userSettings.urbanOpacity = Math.max(10, Math.min(100, saved.urbanOpacity));
+    if (typeof saved.showDensity === "boolean") userSettings.showDensity = saved.showDensity;
   }
 } catch(e) {}
 
@@ -901,6 +988,18 @@ const settingsBtn = document.getElementById("settings-btn");
 const settingsModal = document.getElementById("settings-modal");
 const settingsClose = document.getElementById("settings-close");
 
+const stationModal = document.getElementById("station-modal");
+const stModalClose = document.getElementById("st-modal-close");
+const stTabDep = document.getElementById("st-tab-dep");
+const stTabArr = document.getElementById("st-tab-arr");
+const stBoardList = document.getElementById("st-board-list");
+const stName = document.getElementById("st-name");
+const stTime = document.getElementById("st-time");
+
+let selectedStation = null;
+let currentStationTab = "dep"; // "dep" or "arr"
+let densityGrid = null;
+
 const controlsPanel = document.getElementById("controls");
 const topBar = document.getElementById("top-bar");
 const legendPanel = document.getElementById("legend");
@@ -913,6 +1012,7 @@ const trailLengthInput = document.getElementById("trail-length");
 const trailValLbl = document.getElementById("trail-val");
 const toggleCities = document.getElementById("toggle-cities");
 const toggleFootprints = document.getElementById("toggle-footprints");
+const toggleDensity = document.getElementById("toggle-density");
 const urbanOpacityInput = document.getElementById("urban-opacity");
 const urbanValLbl = document.getElementById("urban-val");
 
@@ -960,7 +1060,7 @@ let proj = {
 };
 
 // Stop Drag/Zoom Bubbling on UI panels & inputs
-[settingsModal, zoomControls, controlsPanel, topBar, legendPanel, figuresEl].forEach(panel => {
+[settingsModal, stationModal, operatorModal, zoomControls, controlsPanel, topBar, legendPanel, figuresEl].forEach(panel => {
   if (!panel) return;
   panel.addEventListener("mousedown", (e) => e.stopPropagation());
   panel.addEventListener("touchstart", (e) => e.stopPropagation(), { passive: true });
@@ -996,6 +1096,7 @@ function initSettingsUI() {
 
   toggleCities.checked = userSettings.showCities;
   toggleFootprints.checked = userSettings.showFootprints;
+  toggleDensity.checked = userSettings.showDensity;
   if (urbanOpacityInput) {
     urbanOpacityInput.value = userSettings.urbanOpacity ?? 40;
     urbanValLbl.textContent = `${urbanOpacityInput.value}%`;
@@ -1015,6 +1116,35 @@ settingsBtn.addEventListener("click", () => {
 settingsClose.addEventListener("click", () => {
   settingsModal.setAttribute("data-open", "false");
 });
+
+if (stModalClose) {
+  stModalClose.addEventListener("click", () => {
+    stationModal.setAttribute("data-open", "false");
+  });
+}
+if (stationModal) {
+  stationModal.addEventListener("click", (e) => {
+    if (e.target === stationModal) {
+      stationModal.setAttribute("data-open", "false");
+    }
+  });
+}
+if (stTabDep) {
+  stTabDep.addEventListener("click", () => {
+    currentStationTab = "dep";
+    stTabDep.classList.add("active");
+    stTabArr.classList.remove("active");
+    renderStationBoard();
+  });
+}
+if (stTabArr) {
+  stTabArr.addEventListener("click", () => {
+    currentStationTab = "arr";
+    stTabArr.classList.add("active");
+    stTabDep.classList.remove("active");
+    renderStationBoard();
+  });
+}
 
 trackOpacityInput.addEventListener("input", (e) => {
   userSettings.trackOpacity = parseInt(e.target.value, 10);
@@ -1043,6 +1173,12 @@ toggleCities.addEventListener("change", (e) => {
 
 toggleFootprints.addEventListener("change", (e) => {
   userSettings.showFootprints = e.target.checked;
+  bgDirty = true;
+  saveSettings();
+});
+
+toggleDensity.addEventListener("change", (e) => {
+  userSettings.showDensity = e.target.checked;
   bgDirty = true;
   saveSettings();
 });
@@ -1380,8 +1516,153 @@ function initUI() {
     }
   });
 
+  buildDensityGrid();
   drawProfileSparkline();
   updateFiguresTable();
+}
+
+function buildDensityGrid() {
+  if (!trainData || !trainData.trips) return;
+  densityGrid = new Map();
+  trainData.trips.forEach(tr => {
+    const pts = tr.pts;
+    if (!pts || pts.length < 2) return;
+    let lastKey = null;
+    for (let i = 0; i < pts.length; i++) {
+      const gx = Math.round(pts[i][0] * 20); // ~3km grid cell
+      const gy = Math.round(pts[i][1] * 20);
+      const key = (gx << 16) | (gy & 0xFFFF);
+      if (key !== lastKey) {
+        densityGrid.set(key, (densityGrid.get(key) || 0) + 1);
+        lastKey = key;
+      }
+    }
+  });
+}
+
+function findClosestStation(clientX, clientY) {
+  if (!userSettings.showCities) return null;
+  const rect = mapCanvas.getBoundingClientRect();
+  const mx = clientX - rect.left;
+  const my = clientY - rect.top;
+
+  let closest = null;
+  let minD = 18;
+
+  CONFIG.cities.forEach(([name, lat, lon, tier]) => {
+    const p = project(lon, lat);
+    const d = Math.hypot(p.x - mx, p.y - my);
+    if (d < minD) {
+      minD = d;
+      closest = { name, lat, lon, tier, pos: p };
+    }
+  });
+
+  return closest;
+}
+
+function openStationBoard(station) {
+  selectedStation = station;
+  const formattedName = station.name.endsWith(" C") || station.name.endsWith(" Central") 
+    ? station.name 
+    : `${station.name} Central`;
+  stName.textContent = formattedName;
+  stationModal.setAttribute("data-open", "true");
+  renderStationBoard();
+}
+
+function renderStationBoard() {
+  if (!selectedStation || !trainData || !trainData.trips) return;
+  const h = Math.floor(simSeconds / 3600);
+  const m = Math.floor((simSeconds % 3600) / 60);
+  stTime.textContent = `Simulation Time: ${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+
+  const stLat = selectedStation.lat;
+  const stLon = selectedStation.lon;
+  const stNameClean = selectedStation.name.replace(/ Central| C| station/gi, "").toLowerCase();
+
+  const matches = [];
+  trainData.trips.forEach(tr => {
+    if (!activeCategories.has(tr.cls)) return;
+    if (!activeOperators.has(tr.op)) return;
+
+    const fromClean = (tr.from || "").toLowerCase();
+    const toClean = (tr.to || "").toLowerCase();
+    const pts = tr.pts;
+    if (!pts || pts.length < 2) return;
+
+    let isDep = false;
+    let isArr = false;
+    let eventTime = null;
+
+    if (fromClean.includes(stNameClean)) {
+      isDep = true;
+      eventTime = pts[0][2];
+    } else if (toClean.includes(stNameClean)) {
+      isArr = true;
+      eventTime = pts[pts.length - 1][2];
+    } else {
+      let minD = 999;
+      let minIdx = -1;
+      for (let i = 0; i < pts.length; i++) {
+        const d = Math.hypot(pts[i][0] - stLon, pts[i][1] - stLat);
+        if (d < minD) { minD = d; minIdx = i; }
+      }
+      if (minD < 0.05) { // ~3.5km
+        eventTime = pts[minIdx][2];
+        isDep = minIdx < pts.length - 1;
+        isArr = minIdx > 0;
+      }
+    }
+
+    if (eventTime !== null) {
+      if ((currentStationTab === "dep" && isDep) || (currentStationTab === "arr" && isArr)) {
+        matches.push({
+          trip: tr,
+          time: eventTime,
+          diff: (eventTime - simSeconds + DAY_SECONDS) % DAY_SECONDS
+        });
+      }
+    }
+  });
+
+  matches.sort((a, b) => a.diff - b.diff);
+
+  stBoardList.innerHTML = "";
+  if (matches.length === 0) {
+    stBoardList.innerHTML = `<div class="st-empty">No ${currentStationTab === "dep" ? "departures" : "arrivals"} found for active filters.</div>`;
+    return;
+  }
+
+  matches.slice(0, 24).forEach(m => {
+    const tr = m.trip;
+    const conf = CONFIG.classes[tr.cls] || CONFIG.classes.regional;
+    const catColor = currentTheme === "dark" ? PAL.hex[conf.role] : PAL.hex[conf.role];
+    const hours = Math.floor(m.time / 3600) % 24;
+    const mins = Math.floor((m.time % 3600) / 60);
+    const timeStr = `${String(hours).padStart(2, "0")}:${String(mins).padStart(2, "0")}`;
+    const destination = currentStationTab === "dep" ? (tr.to || "Destination") : (tr.from || "Origin");
+
+    const row = document.createElement("div");
+    row.className = "st-row";
+    row.innerHTML = `
+      <span class="st-time">${timeStr}</span>
+      <div class="st-train-info">
+        <span class="st-dest">${destination}</span>
+        <span class="st-sub">${tr.id} • ${aliasOperator(tr.op)}</span>
+      </div>
+      <span class="st-cat-badge" style="background:${rgba(PAL.rgb[conf.role] || PAL.rgb.regional, 0.18)}; color:${catColor};">${conf.label.split(" ")[0]}</span>
+    `;
+
+    row.addEventListener("click", () => {
+      trackedTrip = tr;
+      trackingBadge.querySelector("span").textContent = `${tr.id}`;
+      trackingBadge.setAttribute("data-on", "true");
+      stationModal.setAttribute("data-open", "false");
+    });
+
+    stBoardList.appendChild(row);
+  });
 }
 
 if (openOpFilterBtn) {
@@ -1594,10 +1875,27 @@ function getTrainState(trip, tNow) {
     }
   }
 
+  let speedKmh = 0;
+  if (head.idx < pts.length - 1) {
+    const pA = pts[head.idx];
+    const pB = pts[head.idx + 1];
+    const dt = pB[2] - pA[2];
+    if (dt > 0) {
+      const meanLat = ((pA[1] + pB[1]) / 2) * (Math.PI / 180);
+      const dx = (pB[0] - pA[0]) * 111.32 * Math.cos(meanLat);
+      const dy = (pB[1] - pA[1]) * 110.57;
+      const distKm = Math.hypot(dx, dy);
+      if (distKm > 0.03) {
+        speedKmh = Math.min(300, Math.round(distKm / (dt / 3600)));
+      }
+    }
+  }
+
   return {
     lon: head.lon,
     lat: head.lat,
     trailCoords,
+    speedKmh,
     trip
   };
 }
@@ -1717,25 +2015,50 @@ function renderStaticBackground() {
     bgCtx.restore();
   }
 
-  // 4. Draw Railway Track Lines with Opacity Setting (Foreign tracks greyed out)
-  if (userSettings.trackOpacity > 0 && geoData && geoData.tracks) {
-    const alpha = (userSettings.trackOpacity / 100) * (currentTheme === "dark" ? 0.22 : 0.30);
-    bgCtx.lineWidth = 0.55;
+  // 4. Draw Railway Track Lines (or Rail Traffic Density Heatmap)
+  if (geoData && geoData.tracks) {
+    const isDensity = userSettings.showDensity;
+    const trkAlpha = (userSettings.trackOpacity / 100) * (currentTheme === "dark" ? 0.22 : 0.30);
 
-    geoData.tracks.forEach(line => {
-      if (line.length < 2) return;
-      const isForeign = isOutsideSweden(line[0][0], line[0][1]) || isOutsideSweden(line[line.length - 1][0], line[line.length - 1][1]);
-      
-      bgCtx.beginPath();
-      const p0 = project(line[0][0], line[0][1]);
-      bgCtx.moveTo(p0.x, p0.y);
-      for (let i = 1; i < line.length; i++) {
-        const p = project(line[i][0], line[i][1]);
-        bgCtx.lineTo(p.x, p.y);
-      }
-      bgCtx.strokeStyle = isForeign ? rgba(PAL.rgb.foreign, alpha * 0.7) : rgba(PAL.rgb.trackBase || [100, 175, 255], alpha);
-      bgCtx.stroke();
-    });
+    if (isDensity || userSettings.trackOpacity > 0) {
+      geoData.tracks.forEach(line => {
+        if (line.length < 2) return;
+        const isForeign = isOutsideSweden(line[0][0], line[0][1]) || isOutsideSweden(line[line.length - 1][0], line[line.length - 1][1]);
+        
+        bgCtx.beginPath();
+        const p0 = project(line[0][0], line[0][1]);
+        bgCtx.moveTo(p0.x, p0.y);
+        for (let i = 1; i < line.length; i++) {
+          const p = project(line[i][0], line[i][1]);
+          bgCtx.lineTo(p.x, p.y);
+        }
+
+        if (isDensity) {
+          const gx = Math.round(line[0][0] * 20);
+          const gy = Math.round(line[0][1] * 20);
+          const key = (gx << 16) | (gy & 0xFFFF);
+          const count = densityGrid ? (densityGrid.get(key) || 0) : 0;
+
+          if (count > 45) {
+            bgCtx.lineWidth = Math.min(3.6, 2.2 * Math.sqrt(view.zoom));
+            bgCtx.strokeStyle = currentTheme === "dark" ? "rgba(255, 175, 45, 0.88)" : "rgba(230, 95, 0, 0.92)";
+          } else if (count > 18) {
+            bgCtx.lineWidth = Math.min(2.4, 1.4 * Math.sqrt(view.zoom));
+            bgCtx.strokeStyle = currentTheme === "dark" ? "rgba(90, 195, 255, 0.75)" : "rgba(0, 120, 220, 0.80)";
+          } else if (count > 0) {
+            bgCtx.lineWidth = Math.min(1.4, 0.85 * Math.sqrt(view.zoom));
+            bgCtx.strokeStyle = currentTheme === "dark" ? "rgba(90, 150, 200, 0.42)" : "rgba(90, 130, 180, 0.48)";
+          } else {
+            bgCtx.lineWidth = 0.4;
+            bgCtx.strokeStyle = isForeign ? rgba(PAL.rgb.foreign, 0.08) : rgba(PAL.rgb.trackBase || [100, 175, 255], 0.08);
+          }
+        } else {
+          bgCtx.lineWidth = 0.55;
+          bgCtx.strokeStyle = isForeign ? rgba(PAL.rgb.foreign, trkAlpha * 0.7) : rgba(PAL.rgb.trackBase || [100, 175, 255], trkAlpha);
+        }
+        bgCtx.stroke();
+      });
+    }
   }
 
   // 5. Draw City Station Nodes & Text Labels
@@ -1802,7 +2125,7 @@ function render(now) {
   const h = proj.height;
   mapCtx.clearRect(0, 0, w, h);
 
-  // 1. Blit cached static background (Land, Lakes, Top 25 Urban Footprints, 10,686 Tracks, Station Labels)
+  // 1. Blit cached static background (Land, Lakes, Top 25 Urban Footprints, Tracks / Density, Station Labels)
   renderStaticBackground();
   mapCtx.drawImage(bgCanvas, 0, 0, w, h);
 
@@ -1853,7 +2176,7 @@ function render(now) {
 
       const isTracked = trackedTrip && trackedTrip.id === tr.id;
       if (isTracked) {
-        trackedTrainHead = { pos: headPos, trip: tr };
+        trackedTrainHead = { pos: headPos, trip: tr, speedKmh: state.speedKmh };
       }
 
       // Draw trail smoothly
@@ -1892,7 +2215,11 @@ function render(now) {
   }
 
   if (trackedTrainHead) {
-    updateTooltipContent(trackedTrainHead.trip, trackedTrainHead.pos);
+    updateTooltipContent(trackedTrainHead.trip, trackedTrainHead.pos, trackedTrainHead.speedKmh);
+    const spdStr = (trackedTrainHead.speedKmh !== undefined && trackedTrainHead.speedKmh > 0) 
+      ? ` • ${trackedTrainHead.speedKmh} km/h` 
+      : " • At Station";
+    trackingBadge.querySelector("span").textContent = `${trackedTrainHead.trip.id}${spdStr}`;
   }
 
   const runningStr = `${totalActive} trains running`;
@@ -1908,13 +2235,17 @@ function render(now) {
   requestAnimationFrame(render);
 }
 
-function updateTooltipContent(trip, pos) {
+function updateTooltipContent(trip, pos, speedKmh) {
   const conf = CONFIG.classes[trip.cls] || CONFIG.classes.regional;
   const operator = aliasOperator(trip.op) || "Swedish Rail";
   const routeStr = (trip.from && trip.to) ? `${trip.from} → ${trip.to}` : "";
 
   tooltip.querySelector(".tn").textContent = trip.id;
-  
+  const spdEl = tooltip.querySelector(".spd-badge");
+  if (spdEl) {
+    spdEl.textContent = (speedKmh !== undefined && speedKmh > 0) ? `${speedKmh} km/h` : "At Station";
+  }
+
   const routeEl = tooltip.querySelector(".route");
   if (routeStr) {
     routeEl.textContent = routeStr;
@@ -1949,7 +2280,7 @@ function findClosestTrain(clientX, clientY) {
     const d = Math.hypot(p.x - mx, p.y - my);
     if (d < minD) {
       minD = d;
-      closest = { trip: tr, pos: p };
+      closest = { trip: tr, pos: p, speedKmh: state.speedKmh };
     }
   });
 
@@ -1963,7 +2294,7 @@ function handlePointerMove(clientX, clientY) {
   if (closest) {
     hoveredTrip = closest.trip;
     if (!trackedTrip) {
-      updateTooltipContent(closest.trip, closest.pos);
+      updateTooltipContent(closest.trip, closest.pos, closest.speedKmh);
     }
   } else {
     hoveredTrip = null;
@@ -1974,12 +2305,19 @@ function handlePointerMove(clientX, clientY) {
 }
 
 function handleMapClick(clientX, clientY) {
+  const station = findClosestStation(clientX, clientY);
+  if (station) {
+    openStationBoard(station);
+    return;
+  }
+
   const closest = findClosestTrain(clientX, clientY);
   if (closest) {
     trackedTrip = closest.trip;
-    trackingBadge.querySelector("span").textContent = `${closest.trip.id}`;
+    const spdStr = (closest.speedKmh !== undefined && closest.speedKmh > 0) ? ` • ${closest.speedKmh} km/h` : " • At Station";
+    trackingBadge.querySelector("span").textContent = `${closest.trip.id}${spdStr}`;
     trackingBadge.setAttribute("data-on", "true");
-    updateTooltipContent(closest.trip, closest.pos);
+    updateTooltipContent(closest.trip, closest.pos, closest.speedKmh);
   } else {
     trackedTrip = null;
     trackingBadge.setAttribute("data-on", "false");
@@ -2012,6 +2350,8 @@ window.addEventListener("keydown", (e) => {
     trackingBadge.setAttribute("data-on", "false");
     tooltip.setAttribute("data-on", "false");
     settingsModal.setAttribute("data-open", "false");
+    stationModal.setAttribute("data-open", "false");
+    operatorModal.setAttribute("data-open", "false");
   }
 });
 
@@ -2023,6 +2363,9 @@ playBtn.addEventListener("click", () => {
 
 scrub.addEventListener("input", (e) => {
   simSeconds = parseInt(e.target.value, 10);
+  if (stationModal.getAttribute("data-open") === "true") {
+    renderStationBoard();
+  }
 });
 
 spdBtns.forEach(btn => {
@@ -2050,7 +2393,7 @@ async function init() {
     loadingEl.setAttribute("hidden", "true");
     requestAnimationFrame(render);
   } catch (err) {
-    loadingEl.textContent = "Error loading data files. Please run scripts/prepare_data.py.";
+    loadingEl.textContent = "Error loading data files. Please run python scripts/build_all.py.";
     console.error("Failed to load map data:", err);
   }
 }
