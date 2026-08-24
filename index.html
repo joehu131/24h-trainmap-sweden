@@ -79,6 +79,15 @@
   #map { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
   #dock { display: contents; }
 
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--rule);
+    border-radius: 8px;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+  }
+
   /* Top-left stack: Network badge + Day pills + Meta card + Dynamic Mini Clock */
   #top-bar {
     position: fixed; z-index: 6; left: 18px; top: 18px;
@@ -140,6 +149,245 @@
     margin-top: 4px; font-size: 0.68rem; letter-spacing: 0.04em;
     color: var(--ink-3); font-family: "IBM Plex Mono", monospace;
   }
+
+  /* Top-right actions: Theme toggle + Figures button */
+  #top-right {
+    position: fixed; z-index: 4; right: 20px; top: 18px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  #theme-toggle {
+    display: inline-flex; align-items: center; gap: 5px; font-size: 0.76rem;
+  }
+
+  /* Floating Zoom + Settings card */
+  #zoom-controls {
+    position: fixed; z-index: 4; right: 20px; bottom: 85px;
+    display: flex; flex-direction: column; gap: 4px; padding: 4px;
+  }
+  #zoom-controls button {
+    width: 32px; height: 32px; padding: 0;
+    display: grid; place-items: center;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.95rem; font-weight: 500; line-height: 1;
+  }
+  #zoom-controls button.reset-btn {
+    font-size: 0.62rem;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+  }
+  #zoom-controls button svg { display: block; }
+
+  /* Settings Popup Modal */
+  #settings-modal {
+    position: fixed; z-index: 7; right: 62px; bottom: 85px;
+    width: 290px; padding: 14px 16px; display: none;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  }
+  #settings-modal[data-open="true"] { display: block; }
+  .modal-hdr {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--rule);
+  }
+  .modal-hdr h2 {
+    font-size: 0.76rem; font-weight: 600; letter-spacing: 0.06em;
+    text-transform: uppercase; color: var(--ink); margin: 0;
+  }
+  #settings-close, #op-modal-close {
+    background: transparent; border: 0; color: var(--ink-3); font-size: 1.1rem;
+    line-height: 1; padding: 2px 4px; cursor: pointer; border-radius: 4px;
+  }
+  #settings-close:hover, #op-modal-close:hover { color: var(--ink); background: rgba(128, 128, 128, 0.15); }
+
+  /* Operator Filter Modal */
+  #operator-modal {
+    position: fixed; z-index: 8; inset: 0;
+    display: none; place-items: center;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+  }
+  #operator-modal[data-open="true"] { display: grid; }
+  .modal-card {
+    width: 340px; max-width: 90vw; max-height: 80vh;
+    display: flex; flex-direction: column;
+    padding: 16px; box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+  }
+  .modal-toolbar {
+    display: flex; align-items: center; gap: 6px; margin-bottom: 10px;
+  }
+  .mini-btn {
+    padding: 3px 8px; font-size: 0.68rem; border-radius: 4px;
+  }
+  .op-summary {
+    margin-left: auto; font-family: "IBM Plex Mono", monospace;
+    font-size: 0.68rem; color: var(--ink-3);
+  }
+  .operator-list {
+    overflow-y: auto; max-height: 48vh; display: flex; flex-direction: column; gap: 2px;
+    padding-right: 4px;
+  }
+  .op-item {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 5px 6px; border-radius: 5px; font-size: 0.74rem;
+    cursor: pointer; user-select: none; color: var(--ink-2);
+    transition: background 0.12s ease;
+  }
+  .op-item:hover { background: rgba(128, 128, 128, 0.1); color: var(--ink); }
+  .op-item label { display: flex; align-items: center; gap: 8px; cursor: pointer; flex: 1; }
+  .op-item input[type="checkbox"] { accent-color: var(--highspeed); cursor: pointer; width: 13px; height: 13px; }
+  .op-count { font-family: "IBM Plex Mono", monospace; font-size: 0.68rem; color: var(--ink-3); }
+
+  .op-filter-btn {
+    width: 100%; margin-top: 8px; padding: 5px 8px;
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 0.72rem; color: var(--ink-2); background: rgba(128, 128, 128, 0.08);
+    border: 1px solid var(--rule); border-radius: 5px; cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .op-filter-btn:hover { background: rgba(128, 128, 128, 0.16); color: var(--ink); }
+  .op-badge { font-family: "IBM Plex Mono", monospace; font-size: 0.68rem; opacity: 0.8; }
+  #settings-close {
+    background: transparent; border: 0; color: var(--ink-3); font-size: 1.1rem;
+    line-height: 1; padding: 2px 4px; cursor: pointer; border-radius: 4px;
+  }
+  #settings-close:hover { color: var(--ink); background: rgba(128, 128, 128, 0.15); }
+  .modal-body { display: flex; flex-direction: column; gap: 11px; }
+  .setting-row {
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 0.72rem; color: var(--ink-2);
+  }
+  .setting-row label { cursor: pointer; }
+  .setting-row .ctl-wrap { display: flex; align-items: center; gap: 8px; }
+  .setting-row input[type="range"] {
+    width: 90px; height: 4px; -webkit-appearance: none; appearance: none;
+    background: var(--rule); border-radius: 2px; outline: none; cursor: pointer;
+  }
+  .setting-row input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 12px; height: 12px; border-radius: 50%;
+    background: var(--ink); cursor: pointer;
+  }
+  .setting-row input[type="range"]::-moz-range-thumb {
+    width: 12px; height: 12px; border-radius: 50%; border: 0;
+    background: var(--ink); cursor: pointer;
+  }
+  .setting-row .val-lbl {
+    font-family: "IBM Plex Mono", monospace; font-size: 0.68rem;
+    color: var(--ink-3); min-width: 32px; text-align: right;
+  }
+  .setting-row input[type="checkbox"] {
+    accent-color: var(--highspeed); cursor: pointer; width: 14px; height: 14px;
+  }
+  .panel-select {
+    background: var(--panel); border: 1px solid var(--rule); border-radius: 5px;
+    color: var(--ink); font-family: inherit; font-size: 0.72rem; padding: 3px 6px;
+    outline: none; cursor: pointer;
+  }
+
+  /* Center Map Clock in Lapland */
+  header#clock-hdr {
+    position: absolute; z-index: 2; pointer-events: none;
+    transform: translate(-50%, -50%);
+    text-align: center; white-space: nowrap;
+    transition: opacity 0.2s ease;
+  }
+  #clock {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: clamp(2.8rem, 6.5vw, 5.2rem);
+    font-weight: 300; line-height: 0.95;
+    letter-spacing: -0.03em;
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+  }
+  #clock .mins { opacity: 0.6; }
+  #running {
+    margin-top: 6px;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.78rem; letter-spacing: 0.06em;
+    color: var(--ink-3); text-transform: uppercase;
+  }
+  #tracking-badge {
+    margin-top: 6px;
+    display: none;
+    pointer-events: auto;
+    cursor: pointer;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.72rem;
+    padding: 3px 8px;
+    border-radius: 12px;
+    background: rgba(90, 169, 255, 0.18);
+    border: 1px solid var(--highspeed);
+    color: var(--highspeed);
+  }
+  #tracking-badge[data-active="true"] { display: inline-flex; align-items: center; gap: 5px; }
+  #tracking-badge:hover { background: rgba(90, 169, 255, 0.28); }
+
+  /* Bottom Left Legend */
+  #legend {
+    position: fixed; z-index: 4; left: 18px; bottom: 18px;
+    padding: 12px 14px; min-width: 250px;
+  }
+  #legend h2 {
+    font-size: 0.65rem; font-weight: 600; letter-spacing: 0.08em;
+    text-transform: uppercase; color: var(--ink-3); margin-bottom: 9px;
+  }
+  .lg {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 8px; font-size: 0.73rem; padding: 4px 6px; color: var(--ink-2);
+    cursor: pointer; user-select: none; border-radius: 5px;
+    transition: all 0.15s ease;
+  }
+  .lg:hover { background: rgba(128, 128, 128, 0.1); color: var(--ink); }
+  .lg[data-active="false"] { opacity: 0.35; }
+  .lg[data-active="false"] .nm { text-decoration: line-through; }
+  .lg .sw {
+    width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex-shrink: 0;
+  }
+  .lg .nm {
+    flex: 1; margin-left: 5px; color: inherit; font-size: 0.73rem;
+  }
+  .lg .ct {
+    font-family: "IBM Plex Mono", monospace; font-size: 0.70rem;
+    color: var(--ink-3); font-variant-numeric: tabular-nums;
+  }
+  #legend-note {
+    margin-top: 9px; padding-top: 7px; border-top: 1px solid var(--rule);
+    font-size: 0.62rem; color: var(--ink-3); line-height: 1.4;
+  }
+
+  /* Bottom Right Playback Controls */
+  #controls {
+    position: fixed; z-index: 4; right: 20px; bottom: 18px;
+    display: flex; align-items: center; gap: 10px; padding: 8px 12px;
+  }
+  button {
+    font-family: inherit; font-size: 0.75rem; color: var(--ink-2);
+    background: transparent; border: 1px solid var(--rule); border-radius: 6px;
+    padding: 6px 11px; cursor: pointer; transition: all 0.15s ease;
+  }
+  button:hover { color: var(--ink); border-color: var(--ink-3); background: rgba(128, 128, 128, 0.08); }
+  button:focus-visible { outline: 1px solid var(--ink-2); outline-offset: 2px; }
+  button[aria-pressed="true"] { color: var(--ink); border-color: currentColor; background: rgba(128, 128, 128, 0.15); font-weight: 500; }
+  #play { min-width: 66px; }
+  .spd { display: flex; gap: 4px; }
+  .spd button { padding: 5px 9px; font-family: "IBM Plex Mono", monospace; font-size: 0.76rem; }
+
+  #profile { position: relative; width: 270px; height: 40px; }
+  #profcv { position: absolute; inset: 0; width: 100%; height: 100%; display: block; border-radius: 4px; }
+  #scrub {
+    position: absolute; inset: 0; margin: 0; width: 100%; height: 100%;
+    -webkit-appearance: none; appearance: none; background: transparent;
+    outline: none; cursor: pointer;
+  }
+  #scrub::-webkit-slider-runnable-track { background: transparent; height: 100%; }
+  #scrub::-moz-range-track { background: transparent; height: 100%; }
+  #scrub::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 3px; height: 40px; border-radius: 1px;
+    background: var(--ink); cursor: pointer; box-shadow: 0 0 4px rgba(0,0,0,0.5);
+  }
+  #scrub::-moz-range-thumb {
+    width: 3px; height: 40px; border: 0; border-radius: 1px;
+    background: var(--ink); cursor: pointer;
+  }
+  #scrub:focus-visible { outline: 1px solid var(--ink-3); outline-offset: 2px; }
 
   #figures {
     position: fixed; z-index: 3; right: 20px; top: 60px;
@@ -296,6 +544,28 @@
         <label for="toggle-footprints">Dense city footprints</label>
         <input id="toggle-footprints" type="checkbox" checked>
       </div>
+      <div class="setting-row" id="urban-opacity-row">
+        <label for="urban-opacity">Urban opacity</label>
+        <div class="ctl-wrap">
+          <input id="urban-opacity" type="range" min="10" max="100" step="5" value="40">
+          <span id="urban-val" class="val-lbl">40%</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="operator-modal" data-open="false">
+    <div class="panel modal-card">
+      <div class="modal-hdr">
+        <h2>Filter by Train Operator</h2>
+        <button id="op-modal-close" aria-label="Close operator filter">&times;</button>
+      </div>
+      <div class="modal-toolbar">
+        <button id="op-all-btn" class="mini-btn">Select All</button>
+        <button id="op-none-btn" class="mini-btn">Deselect All</button>
+        <span id="op-active-count" class="op-summary">All</span>
+      </div>
+      <div id="operator-list" class="operator-list"></div>
     </div>
   </div>
 
@@ -306,7 +576,11 @@
   <div id="legend" class="panel">
     <h2>Train category</h2>
     <div id="legend-rows"></div>
-    <footer id="legend-note">Urban transit (Metro, Tram, Bus) is excluded. Foreign segments are shown in grey.</footer>
+    <button id="open-op-filter" class="op-filter-btn">
+      <span>Filter by Operator</span>
+      <span id="op-badge" class="op-badge">All</span>
+    </button>
+    <footer id="legend-note">Click a category or operator to filter the map in real time.</footer>
   </div>
 
   <aside id="figures" class="panel" aria-label="Trains by category"></aside>
@@ -348,7 +622,8 @@ const userSettings = {
   trainScale: 1.0,
   trailScale: 1.0,
   showCities: true,
-  showFootprints: true
+  showFootprints: true,
+  urbanOpacity: 40 // percentage
 };
 
 try {
@@ -412,10 +687,10 @@ function isOutsideSweden(lon, lat) {
 
 const CONFIG = {
   classes: {
-    highspeed: { label: "SJ Snabbtåg (X2000 / SJ 3000)", role: "highspeed", size: 0.55, trailSecs: 600, ring: 1.0 },
-    intercity: { label: "InterCity / Øresundståg", role: "intercity", size: 0.48, trailSecs: 500, ring: 0.8 },
-    regional:  { label: "Regional / Pågatågen / Mälartåg", role: "regional", size: 0.35, trailSecs: 350, ring: 0.2 },
-    night:     { label: "SJ / Vy Nattåg (Overnight)", role: "night", size: 0.50, trailSecs: 700, ring: 1.0 }
+    highspeed: { label: "SJ Snabbtåg (X2000 / SJ 3000)", role: "highspeed", size: 0.55, trailSecs: 300, ring: 1.0 },
+    intercity: { label: "InterCity / Øresundståg", role: "intercity", size: 0.48, trailSecs: 240, ring: 0.8 },
+    regional:  { label: "Regional / Pågatågen / Mälartåg", role: "regional", size: 0.35, trailSecs: 150, ring: 0.2 },
+    night:     { label: "SJ / Vy Nattåg (Overnight)", role: "night", size: 0.50, trailSecs: 350, ring: 1.0 }
   },
   bounds: {
     lon0: 10.4, lon1: 24.4,
@@ -600,6 +875,15 @@ const spdBtns = document.querySelectorAll(".spd button[data-mps]");
 const tooltip = document.getElementById("tooltip");
 const loadingEl = document.getElementById("loading");
 
+const openOpFilterBtn = document.getElementById("open-op-filter");
+const opBadge = document.getElementById("op-badge");
+const operatorModal = document.getElementById("operator-modal");
+const opModalClose = document.getElementById("op-modal-close");
+const opAllBtn = document.getElementById("op-all-btn");
+const opNoneBtn = document.getElementById("op-none-btn");
+const opActiveCount = document.getElementById("op-active-count");
+const operatorList = document.getElementById("operator-list");
+
 const zoomControls = document.getElementById("zoom-controls");
 const zoomInBtn = document.getElementById("zoom-in");
 const zoomOutBtn = document.getElementById("zoom-out");
@@ -620,11 +904,17 @@ const trailLengthInput = document.getElementById("trail-length");
 const trailValLbl = document.getElementById("trail-val");
 const toggleCities = document.getElementById("toggle-cities");
 const toggleFootprints = document.getElementById("toggle-footprints");
+const urbanOpacityInput = document.getElementById("urban-opacity");
+const urbanValLbl = document.getElementById("urban-val");
 
 let trainData = null;
 let geoData = null;
 let currentDay = "wed";
-let dayCache = {};
+const dayCache = {};
+
+const activeCategories = new Set(["highspeed", "intercity", "regional", "night"]);
+const activeOperators = new Set();
+let availableOperators = [];
 let isPlaying = true;
 let simSeconds = 28800; // start at 08:00
 let speedMultiplier = 120; // 1x = 2 min/sec
@@ -696,6 +986,10 @@ function initSettingsUI() {
 
   toggleCities.checked = userSettings.showCities;
   toggleFootprints.checked = userSettings.showFootprints;
+  if (urbanOpacityInput) {
+    urbanOpacityInput.value = userSettings.urbanOpacity ?? 40;
+    urbanValLbl.textContent = `${urbanOpacityInput.value}%`;
+  }
 }
 initSettingsUI();
 
@@ -739,6 +1033,14 @@ toggleFootprints.addEventListener("change", (e) => {
   userSettings.showFootprints = e.target.checked;
   saveSettings();
 });
+
+if (urbanOpacityInput) {
+  urbanOpacityInput.addEventListener("input", (e) => {
+    userSettings.urbanOpacity = parseInt(e.target.value, 10);
+    urbanValLbl.textContent = `${userSettings.urbanOpacity}%`;
+    saveSettings();
+  });
+}
 
 trackingBadge.addEventListener("click", () => {
   trackedTrip = null;
@@ -930,19 +1232,100 @@ stage.addEventListener("touchend", (e) => {
   view.lastPinchDist = 0;
 });
 
+function updateOpBadge() {
+  if (!opBadge || !opActiveCount) return;
+  const totalOps = availableOperators.length;
+  const activeCount = activeOperators.size;
+  if (activeCount === totalOps) {
+    opBadge.textContent = "All";
+    opActiveCount.textContent = `All (${totalOps})`;
+  } else if (activeCount === 0) {
+    opBadge.textContent = "None";
+    opActiveCount.textContent = `0 of ${totalOps}`;
+  } else {
+    opBadge.textContent = `${activeCount}/${totalOps}`;
+    opActiveCount.textContent = `${activeCount} of ${totalOps}`;
+  }
+}
+
+function renderOperatorList(opMap) {
+  if (!operatorList) return;
+  operatorList.innerHTML = "";
+  availableOperators.forEach(op => {
+    const item = document.createElement("div");
+    item.className = "op-item";
+    const isChecked = activeOperators.has(op);
+    const count = opMap[op] || 0;
+    item.innerHTML = `
+      <label>
+        <input type="checkbox" data-op="${op}" ${isChecked ? "checked" : ""}>
+        <span>${op}</span>
+      </label>
+      <span class="op-count">${count}</span>
+    `;
+    const cb = item.querySelector("input");
+    cb.addEventListener("change", (e) => {
+      if (e.target.checked) {
+        activeOperators.add(op);
+      } else {
+        activeOperators.delete(op);
+      }
+      updateOpBadge();
+    });
+    operatorList.appendChild(item);
+  });
+  updateOpBadge();
+}
+
 function initUI() {
   legendRows.innerHTML = "";
   for (const k in CONFIG.classes) {
     const c = CONFIG.classes[k];
     const row = document.createElement("div");
     row.className = "lg";
+    row.setAttribute("data-cat", k);
+    row.setAttribute("data-active", activeCategories.has(k) ? "true" : "false");
+    row.setAttribute("role", "checkbox");
+    row.setAttribute("aria-checked", activeCategories.has(k) ? "true" : "false");
+    row.setAttribute("tabindex", "0");
+    row.title = "Click to toggle category";
     row.innerHTML = `
       <span class="sw" style="background:${PAL.hex[c.role]}"></span>
       <span class="nm">${c.label}</span>
       <span class="ct" id="cnt-${k}">0</span>
     `;
+    row.addEventListener("click", () => {
+      if (activeCategories.has(k)) {
+        if (activeCategories.size > 1) {
+          activeCategories.delete(k);
+        } else {
+          for (const cat in CONFIG.classes) activeCategories.add(cat);
+        }
+      } else {
+        activeCategories.add(k);
+      }
+      document.querySelectorAll(".lg").forEach(el => {
+        const catKey = el.getAttribute("data-cat");
+        el.setAttribute("data-active", activeCategories.has(catKey) ? "true" : "false");
+        el.setAttribute("aria-checked", activeCategories.has(catKey) ? "true" : "false");
+      });
+    });
     legendRows.appendChild(row);
   }
+
+  // Operator extraction
+  const opMap = {};
+  trainData.trips.forEach(tr => {
+    let opName = (tr.op || "Tåg").trim();
+    if (opName === "110" || opName === "500000000000000110") opName = "Öresundståg";
+    tr.op = opName;
+    opMap[opName] = (opMap[opName] || 0) + 1;
+  });
+  availableOperators = Object.keys(opMap).sort((a, b) => opMap[b] - opMap[a]);
+  if (activeOperators.size === 0) {
+    availableOperators.forEach(op => activeOperators.add(op));
+  }
+  renderOperatorList(opMap);
 
   netSub.textContent = `${trainData.weekday.slice(0,3)} ${trainData.date}`;
 
@@ -962,6 +1345,42 @@ function initUI() {
 
   drawProfileSparkline();
   updateFiguresTable();
+}
+
+if (openOpFilterBtn) {
+  openOpFilterBtn.addEventListener("click", () => {
+    operatorModal.setAttribute("data-open", "true");
+  });
+}
+if (opModalClose) {
+  opModalClose.addEventListener("click", () => {
+    operatorModal.setAttribute("data-open", "false");
+  });
+}
+if (operatorModal) {
+  operatorModal.addEventListener("click", (e) => {
+    if (e.target === operatorModal) {
+      operatorModal.setAttribute("data-open", "false");
+    }
+  });
+}
+if (opAllBtn) {
+  opAllBtn.addEventListener("click", () => {
+    availableOperators.forEach(op => activeOperators.add(op));
+    if (operatorList) {
+      operatorList.querySelectorAll("input[type='checkbox']").forEach(cb => cb.checked = true);
+    }
+    updateOpBadge();
+  });
+}
+if (opNoneBtn) {
+  opNoneBtn.addEventListener("click", () => {
+    activeOperators.clear();
+    if (operatorList) {
+      operatorList.querySelectorAll("input[type='checkbox']").forEach(cb => cb.checked = false);
+    }
+    updateOpBadge();
+  });
 }
 
 function drawProfileSparkline() {
@@ -1011,6 +1430,32 @@ function updateFiguresTable() {
   `;
 }
 
+async function fetchJson(url) {
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status} on ${url}`);
+    if (url.endsWith('.gz')) {
+      const ds = new DecompressionStream('gzip');
+      const decompressedStream = res.body.pipeThrough(ds);
+      const text = await new Response(decompressedStream).text();
+      return JSON.parse(text);
+    }
+    return await res.json();
+  } catch (err) {
+    if (!url.endsWith('.gz')) {
+      const gzUrl = url + '.gz';
+      const resGz = await fetch(gzUrl);
+      if (resGz.ok) {
+        const ds = new DecompressionStream('gzip');
+        const decompressedStream = resGz.body.pipeThrough(ds);
+        const text = await new Response(decompressedStream).text();
+        return JSON.parse(text);
+      }
+    }
+    throw err;
+  }
+}
+
 async function loadDay(dayKey) {
   currentDay = dayKey;
   dayBtns.forEach(b => {
@@ -1029,8 +1474,7 @@ async function loadDay(dayKey) {
   loadingEl.textContent = `Loading ${dayKey.toUpperCase()} timetable...`;
 
   try {
-    const res = await fetch(`data/sweden-trains-${dayKey}.json`);
-    const data = await res.json();
+    const data = await fetchJson(`data/sweden-trains-${dayKey}.json`);
     dayCache[dayKey] = data;
     trainData = data;
     trackedTrip = null;
@@ -1193,8 +1637,10 @@ function render(now) {
     });
   }
 
-  // 3. Draw Dense Urban City Footprints (Strictly clipped to Land boundary)
-  if (userSettings.showFootprints && geoData && geoData.city_limits && geoData.outline) {
+  // 3. Draw Realistic Core Urban Footprints (Top 25 Cities)
+  const uOpacityScale = (userSettings.urbanOpacity ?? 40) / 40;
+
+  if (userSettings.showFootprints && geoData && geoData.outline) {
     mapCtx.save();
     mapCtx.beginPath();
     geoData.outline.forEach(ring => {
@@ -1209,11 +1655,37 @@ function render(now) {
     });
     mapCtx.clip();
 
-    mapCtx.fillStyle = PAL.hex.cityFill;
-    mapCtx.strokeStyle = PAL.hex.cityLine;
-    mapCtx.lineWidth = 0.6;
+    // 3A. Semi-Urban Metropolitan Fringe (Fainter outer shade)
+    const semiUrban = geoData.semi_urban || [];
+    if (semiUrban.length > 0) {
+      mapCtx.fillStyle = currentTheme === "dark" 
+        ? `rgba(255, 255, 255, ${0.02 * uOpacityScale})` 
+        : `rgba(0, 0, 0, ${0.025 * uOpacityScale})`;
+      semiUrban.forEach(ring => {
+        if (ring.length < 3) return;
+        mapCtx.beginPath();
+        const p0 = project(ring[0][0], ring[0][1]);
+        mapCtx.moveTo(p0.x, p0.y);
+        for (let i = 1; i < ring.length; i++) {
+          const p = project(ring[i][0], ring[i][1]);
+          mapCtx.lineTo(p.x, p.y);
+        }
+        mapCtx.closePath();
+        mapCtx.fill();
+      });
+    }
 
-    geoData.city_limits.forEach(ring => {
+    // 3B. Dense Core Urban Footprints (Real Geographic Contours)
+    const coreUrban = geoData.core_urban || geoData.city_limits || [];
+    mapCtx.fillStyle = currentTheme === "dark" 
+      ? `rgba(70, 88, 111, ${0.16 * uOpacityScale})` 
+      : `rgba(180, 165, 145, ${0.22 * uOpacityScale})`;
+    mapCtx.strokeStyle = currentTheme === "dark" 
+      ? `rgba(90, 115, 145, ${0.32 * uOpacityScale})` 
+      : `rgba(140, 125, 105, ${0.36 * uOpacityScale})`;
+    mapCtx.lineWidth = 0.55;
+
+    coreUrban.forEach(ring => {
       if (ring.length < 3) return;
       mapCtx.beginPath();
       const p0 = project(ring[0][0], ring[0][1]);
@@ -1313,10 +1785,13 @@ function render(now) {
     const scaleFactor = userSettings.trainScale;
 
     trainData.trips.forEach(tr => {
+      const cls = tr.cls;
+      if (!activeCategories.has(cls)) return;
+      if (activeOperators.size > 0 && !activeOperators.has(tr.op)) return;
+
       const state = getTrainState(tr, simSeconds);
       if (!state) return;
 
-      const cls = tr.cls;
       if (activeCounts[cls] !== undefined) activeCounts[cls]++;
       totalActive++;
 
@@ -1514,11 +1989,8 @@ figBtn.addEventListener("click", () => {
 async function init() {
   updateProjection();
   try {
-    const geoRes = await fetch("data/sweden-geo.json");
-    geoData = await geoRes.json();
-
-    const trainRes = await fetch("data/sweden-trains-wed.json");
-    trainData = await trainRes.json();
+    geoData = await fetchJson("data/sweden-geo.json");
+    trainData = await fetchJson("data/sweden-trains-wed.json");
     dayCache["wed"] = trainData;
 
     initUI();
