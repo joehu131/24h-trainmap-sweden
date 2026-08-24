@@ -857,6 +857,9 @@ const CONFIG = {
 const stage = document.getElementById("stage");
 const mapCanvas = document.getElementById("map");
 const mapCtx = mapCanvas.getContext("2d");
+const bgCanvas = document.createElement("canvas");
+const bgCtx = bgCanvas.getContext("2d");
+let bgDirty = true;
 const profCanvas = document.getElementById("profcv");
 const profCtx = profCanvas.getContext("2d");
 
@@ -977,6 +980,7 @@ themeToggle.addEventListener("click", () => {
   PAL = getPalette();
   updateThemeButton();
   initUI();
+  bgDirty = true;
 });
 
 // Settings UI Controls
@@ -1015,6 +1019,7 @@ settingsClose.addEventListener("click", () => {
 trackOpacityInput.addEventListener("input", (e) => {
   userSettings.trackOpacity = parseInt(e.target.value, 10);
   trackValLbl.textContent = `${userSettings.trackOpacity}%`;
+  bgDirty = true;
   saveSettings();
 });
 
@@ -1032,11 +1037,13 @@ trailLengthInput.addEventListener("input", (e) => {
 
 toggleCities.addEventListener("change", (e) => {
   userSettings.showCities = e.target.checked;
+  bgDirty = true;
   saveSettings();
 });
 
 toggleFootprints.addEventListener("change", (e) => {
   userSettings.showFootprints = e.target.checked;
+  bgDirty = true;
   saveSettings();
 });
 
@@ -1044,6 +1051,7 @@ if (urbanOpacityInput) {
   urbanOpacityInput.addEventListener("input", (e) => {
     userSettings.urbanOpacity = parseInt(e.target.value, 10);
     urbanValLbl.textContent = `${userSettings.urbanOpacity}%`;
+    bgDirty = true;
     saveSettings();
   });
 }
@@ -1062,6 +1070,11 @@ function updateProjection() {
   mapCanvas.width = w * dpr;
   mapCanvas.height = h * dpr;
   mapCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+  bgCanvas.width = w * dpr;
+  bgCanvas.height = h * dpr;
+  bgCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  bgDirty = true;
 
   const b = CONFIG.bounds;
   const lonSpan = b.lon1 - b.lon0;
@@ -1138,6 +1151,7 @@ function zoomAt(targetScreenX, targetScreenY, factor) {
   view.panX = targetScreenX - cx - (targetScreenX - cx - view.panX) * scaleRatio;
   view.panY = targetScreenY - cy - (targetScreenY - cy - view.panY) * scaleRatio;
   view.zoom = newZoom;
+  bgDirty = true;
 
   updateClockPos();
 }
@@ -1146,6 +1160,7 @@ function resetView() {
   view.zoom = 1.0;
   view.panX = 0;
   view.panY = 0;
+  bgDirty = true;
   updateClockPos();
 }
 
@@ -1176,6 +1191,7 @@ window.addEventListener("mousemove", (e) => {
   if (!view.isDragging) return;
   view.panX = view.initialPanX + (e.clientX - view.dragStartX);
   view.panY = view.initialPanY + (e.clientY - view.dragStartY);
+  bgDirty = true;
   updateClockPos();
 });
 
@@ -1210,6 +1226,7 @@ stage.addEventListener("touchmove", (e) => {
   if (e.touches.length === 1 && view.isDragging) {
     view.panX = view.initialPanX + (e.touches[0].clientX - view.dragStartX);
     view.panY = view.initialPanY + (e.touches[0].clientY - view.dragStartY);
+    bgDirty = true;
     updateClockPos();
   } else if (e.touches.length === 2) {
     const dx = e.touches[0].clientX - e.touches[1].clientX;
@@ -1585,6 +1602,176 @@ function getTrainState(trip, tNow) {
   };
 }
 
+// Offscreen Pre-rendered Static Background (Land, Lakes, Top 25 Urban Footprints, Tracks, Stations)
+function renderStaticBackground() {
+  if (!bgDirty) return;
+  bgDirty = false;
+
+  const w = proj.width;
+  const h = proj.height;
+  bgCtx.clearRect(0, 0, w, h);
+
+  // 1. Draw Map Base (Sweden Land & Outlines)
+  if (geoData && geoData.outline) {
+    bgCtx.fillStyle = PAL.hex.land;
+    bgCtx.strokeStyle = PAL.hex.landLine;
+    bgCtx.lineWidth = Math.max(0.5, 0.7 * Math.sqrt(view.zoom));
+
+    geoData.outline.forEach(ring => {
+      if (ring.length < 3) return;
+      bgCtx.beginPath();
+      const p0 = project(ring[0][0], ring[0][1]);
+      bgCtx.moveTo(p0.x, p0.y);
+      for (let i = 1; i < ring.length; i++) {
+        const p = project(ring[i][0], ring[i][1]);
+        bgCtx.lineTo(p.x, p.y);
+      }
+      bgCtx.closePath();
+      bgCtx.fill();
+      bgCtx.stroke();
+    });
+  }
+
+  // 2. Draw Major Swedish Lakes (Vänern, Vättern, Mälaren, Hjälmaren, Siljan, etc.)
+  if (geoData && geoData.lakes) {
+    bgCtx.fillStyle = PAL.hex.bgBot;
+    bgCtx.strokeStyle = PAL.hex.landLine;
+    bgCtx.lineWidth = 0.6;
+
+    geoData.lakes.forEach(ring => {
+      if (ring.length < 3) return;
+      bgCtx.beginPath();
+      const p0 = project(ring[0][0], ring[0][1]);
+      bgCtx.moveTo(p0.x, p0.y);
+      for (let i = 1; i < ring.length; i++) {
+        const p = project(ring[i][0], ring[i][1]);
+        bgCtx.lineTo(p.x, p.y);
+      }
+      bgCtx.closePath();
+      bgCtx.fill();
+      bgCtx.stroke();
+    });
+  }
+
+  // 3. Draw Realistic Core Urban Footprints (Top 25 Cities)
+  const uOpacityScale = (userSettings.urbanOpacity ?? 40) / 40;
+
+  if (userSettings.showFootprints && geoData && geoData.outline) {
+    bgCtx.save();
+    bgCtx.beginPath();
+    geoData.outline.forEach(ring => {
+      if (ring.length < 3) return;
+      const p0 = project(ring[0][0], ring[0][1]);
+      bgCtx.moveTo(p0.x, p0.y);
+      for (let i = 1; i < ring.length; i++) {
+        const p = project(ring[i][0], ring[i][1]);
+        bgCtx.lineTo(p.x, p.y);
+      }
+      bgCtx.closePath();
+    });
+    bgCtx.clip();
+
+    // 3A. Semi-Urban Metropolitan Fringe
+    const semiUrban = geoData.semi_urban || [];
+    if (semiUrban.length > 0) {
+      bgCtx.fillStyle = currentTheme === "dark" 
+        ? `rgba(255, 255, 255, ${0.02 * uOpacityScale})` 
+        : `rgba(0, 0, 0, ${0.025 * uOpacityScale})`;
+      semiUrban.forEach(ring => {
+        if (ring.length < 3) return;
+        bgCtx.beginPath();
+        const p0 = project(ring[0][0], ring[0][1]);
+        bgCtx.moveTo(p0.x, p0.y);
+        for (let i = 1; i < ring.length; i++) {
+          const p = project(ring[i][0], ring[i][1]);
+          bgCtx.lineTo(p.x, p.y);
+        }
+        bgCtx.closePath();
+        bgCtx.fill();
+      });
+    }
+
+    // 3B. Dense Core Urban Footprints (Real Geographic Contours)
+    const coreUrban = geoData.core_urban || geoData.city_limits || [];
+    bgCtx.fillStyle = currentTheme === "dark" 
+      ? `rgba(70, 88, 111, ${0.16 * uOpacityScale})` 
+      : `rgba(180, 165, 145, ${0.22 * uOpacityScale})`;
+    bgCtx.strokeStyle = currentTheme === "dark" 
+      ? `rgba(90, 115, 145, ${0.32 * uOpacityScale})` 
+      : `rgba(140, 125, 105, ${0.36 * uOpacityScale})`;
+    bgCtx.lineWidth = 0.55;
+
+    coreUrban.forEach(ring => {
+      if (ring.length < 3) return;
+      bgCtx.beginPath();
+      const p0 = project(ring[0][0], ring[0][1]);
+      bgCtx.moveTo(p0.x, p0.y);
+      for (let i = 1; i < ring.length; i++) {
+        const p = project(ring[i][0], ring[i][1]);
+        bgCtx.lineTo(p.x, p.y);
+      }
+      bgCtx.closePath();
+      bgCtx.fill();
+      bgCtx.stroke();
+    });
+    bgCtx.restore();
+  }
+
+  // 4. Draw Railway Track Lines with Opacity Setting (Foreign tracks greyed out)
+  if (userSettings.trackOpacity > 0 && geoData && geoData.tracks) {
+    const alpha = (userSettings.trackOpacity / 100) * (currentTheme === "dark" ? 0.22 : 0.30);
+    bgCtx.lineWidth = 0.55;
+
+    geoData.tracks.forEach(line => {
+      if (line.length < 2) return;
+      const isForeign = isOutsideSweden(line[0][0], line[0][1]) || isOutsideSweden(line[line.length - 1][0], line[line.length - 1][1]);
+      
+      bgCtx.beginPath();
+      const p0 = project(line[0][0], line[0][1]);
+      bgCtx.moveTo(p0.x, p0.y);
+      for (let i = 1; i < line.length; i++) {
+        const p = project(line[i][0], line[i][1]);
+        bgCtx.lineTo(p.x, p.y);
+      }
+      bgCtx.strokeStyle = isForeign ? rgba(PAL.rgb.foreign, alpha * 0.7) : rgba(PAL.rgb.trackBase || [100, 175, 255], alpha);
+      bgCtx.stroke();
+    });
+  }
+
+  // 5. Draw City Station Nodes & Text Labels
+  if (userSettings.showCities) {
+    const z = view.zoom;
+    CONFIG.cities.forEach(([name, lat, lon, tier]) => {
+      if (tier === 2 && z < 1.6) return;
+      if (tier === 3 && z < 3.2) return;
+
+      const p = project(lon, lat);
+      
+      let rad = 1.4;
+      if (tier === 1) rad = Math.min(4.5, 2.2 * Math.sqrt(z));
+      else if (tier === 2) rad = Math.min(3.2, 1.5 * Math.sqrt(z));
+      else rad = Math.min(2.5, 1.1 * Math.sqrt(z));
+
+      bgCtx.beginPath();
+      bgCtx.arc(p.x, p.y, rad, 0, Math.PI * 2);
+      bgCtx.fillStyle = tier === 1 ? PAL.hex.hub : (tier === 2 ? PAL.hex.station : rgba(PAL.rgb.ink3, 0.6));
+      bgCtx.fill();
+
+      if (tier === 1 || (tier === 2 && z > 1.8) || (tier === 3 && z > 3.4)) {
+        let baseFontSize = 10;
+        if (tier === 1) baseFontSize = 10.5;
+        else if (tier === 2) baseFontSize = 9.5;
+        else baseFontSize = 8.5;
+
+        const fontSize = Math.min(13, Math.max(8, Math.round(baseFontSize * Math.pow(z, 0.18))));
+        bgCtx.font = `${fontSize}px 'IBM Plex Sans', sans-serif`;
+        bgCtx.fillStyle = tier === 1 ? PAL.hex.ink : (tier === 2 ? PAL.hex.ink2 : PAL.hex.ink3);
+        bgCtx.fillText(name, p.x + rad + 4, p.y + 3);
+      }
+    });
+  }
+}
+
 // Render loop
 function render(now) {
   const dt = (now - lastFrameTime) / 1000;
@@ -1615,134 +1802,11 @@ function render(now) {
   const h = proj.height;
   mapCtx.clearRect(0, 0, w, h);
 
-  // 1. Draw Map Base (Sweden Land & Detailed County Outlines)
-  if (geoData && geoData.outline) {
-    mapCtx.fillStyle = PAL.hex.land;
-    mapCtx.strokeStyle = PAL.hex.landLine;
-    mapCtx.lineWidth = Math.max(0.5, 0.7 * Math.sqrt(view.zoom));
+  // 1. Blit cached static background (Land, Lakes, Top 25 Urban Footprints, 10,686 Tracks, Station Labels)
+  renderStaticBackground();
+  mapCtx.drawImage(bgCanvas, 0, 0, w, h);
 
-    geoData.outline.forEach(ring => {
-      if (ring.length < 3) return;
-      mapCtx.beginPath();
-      const p0 = project(ring[0][0], ring[0][1]);
-      mapCtx.moveTo(p0.x, p0.y);
-      for (let i = 1; i < ring.length; i++) {
-        const p = project(ring[i][0], ring[i][1]);
-        mapCtx.lineTo(p.x, p.y);
-      }
-      mapCtx.closePath();
-      mapCtx.fill();
-      mapCtx.stroke();
-    });
-  }
-
-  // 2. Draw Major Swedish Lakes (Vänern, Vättern, Mälaren, Hjälmaren, Siljan, etc.)
-  if (geoData && geoData.lakes) {
-    mapCtx.fillStyle = PAL.hex.bgBot;
-    mapCtx.strokeStyle = PAL.hex.landLine;
-    mapCtx.lineWidth = 0.6;
-
-    geoData.lakes.forEach(ring => {
-      if (ring.length < 3) return;
-      mapCtx.beginPath();
-      const p0 = project(ring[0][0], ring[0][1]);
-      mapCtx.moveTo(p0.x, p0.y);
-      for (let i = 1; i < ring.length; i++) {
-        const p = project(ring[i][0], ring[i][1]);
-        mapCtx.lineTo(p.x, p.y);
-      }
-      mapCtx.closePath();
-      mapCtx.fill();
-      mapCtx.stroke();
-    });
-  }
-
-  // 3. Draw Realistic Core Urban Footprints (Top 25 Cities)
-  const uOpacityScale = (userSettings.urbanOpacity ?? 40) / 40;
-
-  if (userSettings.showFootprints && geoData && geoData.outline) {
-    mapCtx.save();
-    mapCtx.beginPath();
-    geoData.outline.forEach(ring => {
-      if (ring.length < 3) return;
-      const p0 = project(ring[0][0], ring[0][1]);
-      mapCtx.moveTo(p0.x, p0.y);
-      for (let i = 1; i < ring.length; i++) {
-        const p = project(ring[i][0], ring[i][1]);
-        mapCtx.lineTo(p.x, p.y);
-      }
-      mapCtx.closePath();
-    });
-    mapCtx.clip();
-
-    // 3A. Semi-Urban Metropolitan Fringe (Fainter outer shade)
-    const semiUrban = geoData.semi_urban || [];
-    if (semiUrban.length > 0) {
-      mapCtx.fillStyle = currentTheme === "dark" 
-        ? `rgba(255, 255, 255, ${0.02 * uOpacityScale})` 
-        : `rgba(0, 0, 0, ${0.025 * uOpacityScale})`;
-      semiUrban.forEach(ring => {
-        if (ring.length < 3) return;
-        mapCtx.beginPath();
-        const p0 = project(ring[0][0], ring[0][1]);
-        mapCtx.moveTo(p0.x, p0.y);
-        for (let i = 1; i < ring.length; i++) {
-          const p = project(ring[i][0], ring[i][1]);
-          mapCtx.lineTo(p.x, p.y);
-        }
-        mapCtx.closePath();
-        mapCtx.fill();
-      });
-    }
-
-    // 3B. Dense Core Urban Footprints (Real Geographic Contours)
-    const coreUrban = geoData.core_urban || geoData.city_limits || [];
-    mapCtx.fillStyle = currentTheme === "dark" 
-      ? `rgba(70, 88, 111, ${0.16 * uOpacityScale})` 
-      : `rgba(180, 165, 145, ${0.22 * uOpacityScale})`;
-    mapCtx.strokeStyle = currentTheme === "dark" 
-      ? `rgba(90, 115, 145, ${0.32 * uOpacityScale})` 
-      : `rgba(140, 125, 105, ${0.36 * uOpacityScale})`;
-    mapCtx.lineWidth = 0.55;
-
-    coreUrban.forEach(ring => {
-      if (ring.length < 3) return;
-      mapCtx.beginPath();
-      const p0 = project(ring[0][0], ring[0][1]);
-      mapCtx.moveTo(p0.x, p0.y);
-      for (let i = 1; i < ring.length; i++) {
-        const p = project(ring[i][0], ring[i][1]);
-        mapCtx.lineTo(p.x, p.y);
-      }
-      mapCtx.closePath();
-      mapCtx.fill();
-      mapCtx.stroke();
-    });
-    mapCtx.restore();
-  }
-
-  // 4. Draw Railway Track Lines with Opacity Setting (Foreign tracks greyed out)
-  if (userSettings.trackOpacity > 0 && geoData && geoData.tracks) {
-    const alpha = (userSettings.trackOpacity / 100) * (currentTheme === "dark" ? 0.22 : 0.30);
-    mapCtx.lineWidth = 0.55;
-
-    geoData.tracks.forEach(line => {
-      if (line.length < 2) return;
-      const isForeign = isOutsideSweden(line[0][0], line[0][1]) || isOutsideSweden(line[line.length - 1][0], line[line.length - 1][1]);
-      
-      mapCtx.beginPath();
-      const p0 = project(line[0][0], line[0][1]);
-      mapCtx.moveTo(p0.x, p0.y);
-      for (let i = 1; i < line.length; i++) {
-        const p = project(line[i][0], line[i][1]);
-        mapCtx.lineTo(p.x, p.y);
-      }
-      mapCtx.strokeStyle = isForeign ? rgba(PAL.rgb.foreign, alpha * 0.7) : rgba(PAL.rgb.trackBase || [100, 175, 255], alpha);
-      mapCtx.stroke();
-    });
-  }
-
-  // 5. Draw Full Route Line Highlight for Hovered or Tracked Train
+  // 2. Draw Full Route Line Highlight for Hovered or Tracked Train
   const activeFocusTrip = trackedTrip || hoveredTrip;
   if (activeFocusTrip && activeFocusTrip.pts && activeFocusTrip.pts.length >= 2) {
     const conf = CONFIG.classes[activeFocusTrip.cls] || CONFIG.classes.regional;
@@ -1763,40 +1827,7 @@ function render(now) {
     mapCtx.restore();
   }
 
-  // 6. Draw Cities with 3 Dynamic Zoom Tiers
-  if (userSettings.showCities) {
-    const z = view.zoom;
-    CONFIG.cities.forEach(([name, lat, lon, tier]) => {
-      if (tier === 2 && z < 1.6) return;
-      if (tier === 3 && z < 3.2) return;
-
-      const p = project(lon, lat);
-      
-      let rad = 1.4;
-      if (tier === 1) rad = Math.min(4.5, 2.2 * Math.sqrt(z));
-      else if (tier === 2) rad = Math.min(3.2, 1.5 * Math.sqrt(z));
-      else rad = Math.min(2.5, 1.1 * Math.sqrt(z));
-
-      mapCtx.beginPath();
-      mapCtx.arc(p.x, p.y, rad, 0, Math.PI * 2);
-      mapCtx.fillStyle = tier === 1 ? PAL.hex.hub : (tier === 2 ? PAL.hex.station : rgba(PAL.rgb.ink3, 0.6));
-      mapCtx.fill();
-
-      if (tier === 1 || (tier === 2 && z > 1.8) || (tier === 3 && z > 3.4)) {
-        let baseFontSize = 10;
-        if (tier === 1) baseFontSize = 10.5;
-        else if (tier === 2) baseFontSize = 9.5;
-        else baseFontSize = 8.5;
-
-        const fontSize = Math.min(13, Math.max(8, Math.round(baseFontSize * Math.pow(z, 0.18))));
-        mapCtx.font = `${fontSize}px 'IBM Plex Sans', sans-serif`;
-        mapCtx.fillStyle = tier === 1 ? PAL.hex.ink : (tier === 2 ? PAL.hex.ink2 : PAL.hex.ink3);
-        mapCtx.fillText(name, p.x + rad + 4, p.y + 3);
-      }
-    });
-  }
-
-  // 7. Draw Active Trains & Trails
+  // 3. Draw Active Trains & Trails
   let activeCounts = { highspeed: 0, intercity: 0, regional: 0, night: 0 };
   let totalActive = 0;
   let trackedTrainHead = null;
@@ -1807,7 +1838,7 @@ function render(now) {
     trainData.trips.forEach(tr => {
       const cls = tr.cls;
       if (!activeCategories.has(cls)) return;
-      if (activeOperators.size > 0 && !activeOperators.has(tr.op)) return;
+      if (!activeOperators.has(tr.op)) return;
 
       const state = getTrainState(tr, simSeconds);
       if (!state) return;
@@ -1910,6 +1941,8 @@ function findClosestTrain(clientX, clientY) {
   let minD = 24;
 
   trainData.trips.forEach(tr => {
+    if (!activeCategories.has(tr.cls)) return;
+    if (!activeOperators.has(tr.op)) return;
     const state = getTrainState(tr, simSeconds);
     if (!state) return;
     const p = project(state.lon, state.lat);
