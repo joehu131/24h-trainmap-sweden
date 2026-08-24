@@ -410,7 +410,16 @@
   .lg[data-active="false"] { opacity: 0.35; }
   .lg[data-active="false"] .nm { text-decoration: line-through; }
   .lg .sw {
-    width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex-shrink: 0;
+    width: 9px; height: 9px; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .lg .sw.sw-circle { border-radius: 50%; }
+  .lg .sw.sw-square { border-radius: 1px; }
+  .lg .sw.sw-triangle {
+    width: 0; height: 0;
+    background: transparent !important;
+    border-left: 4.5px solid transparent;
+    border-right: 4.5px solid transparent;
+    border-bottom: 8px solid;
   }
   .lg .nm {
     flex: 1; margin-left: 5px; color: inherit; font-size: 0.73rem;
@@ -959,8 +968,8 @@ function isOutsideSweden(lon, lat) {
 const CONFIG = {
   classes: {
     highspeed: { label: "SJ Snabbtåg (X2000 / SJ 3000)", role: "highspeed", size: 0.55, trailSecs: 300, ring: 1.0 },
-    intercity: { label: "InterCity / Øresundståg", role: "intercity", size: 0.48, trailSecs: 240, ring: 0.8 },
-    regional:  { label: "Regional / Pågatågen / Mälartåg", role: "regional", size: 0.35, trailSecs: 150, ring: 0.2 },
+    intercity: { label: "InterCity / Øresundståg", role: "intercity", size: 0.48, trailSecs: 360, ring: 0.8 },
+    regional:  { label: "Regional / Pågatågen / Mälartåg", role: "regional", size: 0.35, trailSecs: 225, ring: 0.2 },
     night:     { label: "SJ / Vy Nattåg (Overnight)", role: "night", size: 0.50, trailSecs: 350, ring: 1.0 }
   },
   bounds: {
@@ -1697,8 +1706,16 @@ function initUI() {
     row.setAttribute("aria-checked", activeCategories.has(k) ? "true" : "false");
     row.setAttribute("tabindex", "0");
     row.title = "Click to toggle category";
+
+    let swHtml = `<span class="sw sw-circle" style="background:${PAL.hex[c.role]}"></span>`;
+    if (k === "highspeed") {
+      swHtml = `<span class="sw sw-triangle" style="border-bottom-color:${PAL.hex[c.role]}"></span>`;
+    } else if (k === "intercity") {
+      swHtml = `<span class="sw sw-square" style="background:${PAL.hex[c.role]}"></span>`;
+    }
+
     row.innerHTML = `
-      <span class="sw" style="background:${PAL.hex[c.role]}"></span>
+      ${swHtml}
       <span class="nm">${c.label}</span>
       <span class="ct" id="cnt-${k}">0</span>
     `;
@@ -2350,18 +2367,18 @@ function renderStaticBackground() {
 
       bgCtx.beginPath();
       bgCtx.arc(p.x, p.y, rad, 0, Math.PI * 2);
-      bgCtx.fillStyle = tier === 1 ? PAL.hex.hub : (tier === 2 ? PAL.hex.station : rgba(PAL.rgb.ink3, 0.6));
+      bgCtx.fillStyle = tier === 1 ? PAL.hex.station : (tier === 2 ? rgba(PAL.rgb.station, 0.8) : rgba(PAL.rgb.ink3, 0.5));
       bgCtx.fill();
 
       if (tier === 1 || (tier === 2 && z > 1.8) || (tier === 3 && z > 3.4)) {
         let baseFontSize = 10;
-        if (tier === 1) baseFontSize = 10.5;
-        else if (tier === 2) baseFontSize = 9.5;
-        else baseFontSize = 8.5;
+        if (tier === 1) baseFontSize = 10.0;
+        else if (tier === 2) baseFontSize = 9.0;
+        else baseFontSize = 8.0;
 
-        const fontSize = Math.min(13, Math.max(8, Math.round(baseFontSize * Math.pow(z, 0.18))));
+        const fontSize = Math.min(12, Math.max(8, Math.round(baseFontSize * Math.pow(z, 0.18))));
         bgCtx.font = `${fontSize}px 'IBM Plex Sans', sans-serif`;
-        bgCtx.fillStyle = tier === 1 ? PAL.hex.ink : (tier === 2 ? PAL.hex.ink2 : PAL.hex.ink3);
+        bgCtx.fillStyle = tier === 1 ? PAL.hex.ink2 : (tier === 2 ? PAL.hex.ink3 : rgba(PAL.rgb.ink3, 0.7));
         bgCtx.fillText(name, p.x + rad + 4, p.y + 3);
       }
     });
@@ -2469,20 +2486,75 @@ function render(now) {
         mapCtx.stroke();
       }
 
-      // Draw train head dot
-      const rad = Math.min(7, 2.6 * conf.size * Math.pow(view.zoom, 0.35) * scaleFactor * (isTracked ? 1.4 : 1.0));
-      mapCtx.beginPath();
-      mapCtx.arc(headPos.x, headPos.y, rad, 0, Math.PI * 2);
-      mapCtx.fillStyle = css(rgbColor);
-      mapCtx.fill();
+      // Calculate train heading from recent trail
+      let angle = 0;
+      let hasAngle = false;
+      if (state.trailCoords && state.trailCoords.length > 0) {
+        const pPrev = project(state.trailCoords[0][0], state.trailCoords[0][1]);
+        const dx = headPos.x - pPrev.x;
+        const dy = headPos.y - pPrev.y;
+        if (Math.hypot(dx, dy) > 0.4) {
+          angle = Math.atan2(dy, dx);
+          hasAngle = true;
+        }
+      }
 
-      // Outer ring for high-speed, night, or tracked trains
-      if (conf.ring > 0.5 || isTracked) {
+      // Draw train head icon (Triangle for High-speed, Cube/Square for InterCity, Circle for Regional & Night)
+      const rad = Math.min(7, 2.6 * conf.size * Math.pow(view.zoom, 0.35) * scaleFactor * (isTracked ? 1.4 : 1.0));
+
+      if (cls === "highspeed") {
+        mapCtx.save();
+        mapCtx.translate(headPos.x, headPos.y);
+        if (hasAngle) mapCtx.rotate(angle);
+        const r = rad * 1.35;
         mapCtx.beginPath();
-        mapCtx.arc(headPos.x, headPos.y, rad + (isTracked ? 2.6 : 1.8) * scaleFactor, 0, Math.PI * 2);
-        mapCtx.strokeStyle = rgba(rgbColor, currentTheme === "dark" ? 0.7 : 0.9);
-        mapCtx.lineWidth = isTracked ? 1.4 : 0.9;
-        mapCtx.stroke();
+        if (hasAngle) {
+          mapCtx.moveTo(r * 1.3, 0);
+          mapCtx.lineTo(-r * 0.8, -r * 0.85);
+          mapCtx.lineTo(-r * 0.4, 0);
+          mapCtx.lineTo(-r * 0.8, r * 0.85);
+        } else {
+          mapCtx.moveTo(0, -r * 1.2);
+          mapCtx.lineTo(r, r * 0.8);
+          mapCtx.lineTo(-r, r * 0.8);
+        }
+        mapCtx.closePath();
+        mapCtx.fillStyle = css(rgbColor);
+        mapCtx.fill();
+        if (isTracked) {
+          mapCtx.strokeStyle = rgba(rgbColor, currentTheme === "dark" ? 0.9 : 1.0);
+          mapCtx.lineWidth = 1.6;
+          mapCtx.stroke();
+        }
+        mapCtx.restore();
+      } else if (cls === "intercity") {
+        const size = rad * 1.8;
+        mapCtx.save();
+        mapCtx.translate(headPos.x, headPos.y);
+        if (hasAngle) mapCtx.rotate(angle);
+        mapCtx.beginPath();
+        mapCtx.rect(-size / 2, -size / 2, size, size);
+        mapCtx.fillStyle = css(rgbColor);
+        mapCtx.fill();
+        if (isTracked) {
+          mapCtx.strokeStyle = rgba(rgbColor, currentTheme === "dark" ? 0.9 : 1.0);
+          mapCtx.lineWidth = 1.5;
+          mapCtx.stroke();
+        }
+        mapCtx.restore();
+      } else {
+        mapCtx.beginPath();
+        mapCtx.arc(headPos.x, headPos.y, rad, 0, Math.PI * 2);
+        mapCtx.fillStyle = css(rgbColor);
+        mapCtx.fill();
+
+        if (conf.ring > 0.5 || isTracked) {
+          mapCtx.beginPath();
+          mapCtx.arc(headPos.x, headPos.y, rad + (isTracked ? 2.6 : 1.8) * scaleFactor, 0, Math.PI * 2);
+          mapCtx.strokeStyle = rgba(rgbColor, currentTheme === "dark" ? 0.7 : 0.9);
+          mapCtx.lineWidth = isTracked ? 1.4 : 0.9;
+          mapCtx.stroke();
+        }
       }
     });
   }
