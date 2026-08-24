@@ -34,16 +34,16 @@ An interactive 24-hour visualization of passenger train movements across Sweden.
                     CLIENT APPLICATION
                      
                      index.html
-             ┌─────────────────────────┐
-             │ Animation Loop (60 FPS) │
-             │ ├─ Curved trail paths   │
-             │ ├─ Operator filtering   │
-             │ ├─ Category filtering   │
-             │ ├─ Smooth zoom & pan    │
-             │ ├─ Interactive tracking │
-             │ ├─ Urban opacity slider │
-             │ └─ Viewport mini-clock  │
-             └─────────────────────────┘
+             ┌───────────────────────────────┐
+             │ Animation Loop (60 FPS)       │
+             │ ├─ Offscreen Canvas Caching   │
+             │ ├─ Real-Time Speedometer      │
+             │ ├─ Station Departures Board   │
+             │ ├─ Traffic Density Heatmap    │
+             │ ├─ Operator & Class Filters   │
+             │ ├─ Smooth 16x Zoom & Pan      │
+             │ └─ Viewport Mini-Clock        │
+             └───────────────────────────────┘
 ```
 
 ---
@@ -57,13 +57,15 @@ The simulation covers the full 7-day week from **August 31, 2026 to September 6,
 ## Key Features
 
 - **High-Precision OSM Tracks**: 10,686 physical railway track segments extracted from OpenStreetMap.
-- **Top 25 Urban Footprints**: City centers for Sweden's 25 largest cities.
-- **Filtering**: Isolate traffic by specific train operators (SJ, MTRX, Vy, Pågatåg, Öresundståg, etc.).
-- **Toggles**: Filter by High-Speed, Intercity, Regional, or Night trains from the legend.
+- **Top 25 Urban Footprints**: Realistic municipal footprints for Sweden's 25 largest cities with opacity control.
+- **Offscreen Canvas Caching**: Static geography, tracks, and station labels are pre-rendered offscreen to maintain steady 60 FPS (Frames Per Second) performance.
+- **Live Speedometer**: Real-time velocity in km/h calculated from track sub-segment coordinate derivatives during live tracking.
+- **Station Departures & Arrivals Board**: Click any station dot or city label to open a live timetable modal that automatically removes departed services as the simulation clock advances.
+- **Traffic Density Heatmap**: Optional arterial heatglow mode visualizing passenger traffic intensity along major rail corridors.
+- **Operator Filtering**: Isolate traffic by specific train operators (SJ, MTRX, Vy, Pågatågen, Öresundståg, Krösatågen, etc.).
+- **Category Toggles**: Filter by High-Speed, Intercity, Regional, or Night trains from the legend.
 - **7-Day Timetable**: Switch between all seven days of the week.
-- **Interactive Tracking**: Click any train dot to lock camera tracking and view live route details.
-- **Smooth Pan & Zoom**: Multi-touch and wheel zooming from 0.8x to 16.0x.
-- **Display Settings**: Adjust track opacity, train dot size, trail length, and urban footprint opacity.
+- **Smooth Pan & Zoom**: Multi-touch and wheel zooming from 0.8x to 16.0x with responsive coordinate re-projection.
 
 ---
 
@@ -73,7 +75,7 @@ The simulation covers the full 7-day week from **August 31, 2026 to September 6,
 | :--- | :--- | :--- |
 | **High-Speed** | Blue | SJ Snabbtåg (X2000, SJ 3000), VR Snabbtåg, MTRX, Arlanda Express |
 | **Intercity** | Orange | SJ InterCity, Öresundståg, Snälltåget, Tågab |
-| **Regional** | Green | Mälartåg, Pågatåg, Västtågen, Krösatågen, TiB (Tåg i Bergslagen), Norrtåg, Värmlandstrafik, SL Pendeltåg |
+| **Regional** | Green | Mälartåg, Pågatågen, Västtågen, Krösatågen, TiB (Tåg i Bergslagen), Norrtåg, Värmlandstrafik, SL Pendeltåg |
 | **Night Trains** | Yellow | SJ Nattåg, Vy Nattåg, EuroNight |
 | **Cross-Border** | Muted Grey | Connecting routes into Norway (Oslo, Narvik) and Denmark (Copenhagen) |
 
