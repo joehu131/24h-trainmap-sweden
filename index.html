@@ -616,24 +616,24 @@
       box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.5) !important;
     }
 
-    /* Settings Modal on Mobile (Slightly narrower card centered above bottom safe area) */
+    /* Settings Modal on Mobile (Appears cleanly at top, never behind bottom timeline bar) */
     #settings-modal {
       position: fixed; z-index: 8; inset: 0;
       background: rgba(0, 0, 0, 0.6);
       backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
-      display: none; align-items: flex-end; justify-content: center;
-      padding: 0 14px calc(14px + env(safe-area-inset-bottom));
+      display: none; align-items: flex-start; justify-content: center;
+      padding: calc(54px + env(safe-area-inset-top)) 14px 14px;
     }
     #settings-modal[data-open="true"] { display: flex; }
     #settings-modal .settings-card {
       width: 100% !important; max-width: 380px !important;
       border-radius: 14px !important;
       padding: 16px !important;
-      max-height: 80svh !important;
+      max-height: 75svh !important;
       overflow-y: auto;
       display: block !important;
       position: static !important;
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5) !important;
+      box-shadow: 0 12px 36px rgba(0, 0, 0, 0.6) !important;
     }
 
     /* Mobile Legend Sheet */
@@ -1538,13 +1538,15 @@ stage.addEventListener("wheel", (e) => {
 }, { passive: false });
 
 let pointerDownPos = { x: 0, y: 0 };
+let pointerDownTarget = null;
 
 stage.addEventListener("mousedown", (e) => {
-  if (e.button !== 0) return;
+  if (e.button !== 0 || e.target !== mapCanvas) return;
   view.isDragging = true;
   view.dragStartX = e.clientX;
   view.dragStartY = e.clientY;
   pointerDownPos = { x: e.clientX, y: e.clientY };
+  pointerDownTarget = e.target;
   view.initialPanX = view.panX;
   view.initialPanY = view.panY;
   stage.classList.add("dragging");
@@ -1563,18 +1565,21 @@ window.addEventListener("mouseup", (e) => {
     view.isDragging = false;
     stage.classList.remove("dragging");
     const dist = Math.hypot(e.clientX - pointerDownPos.x, e.clientY - pointerDownPos.y);
-    if (dist < 4) {
+    if (dist < 4 && pointerDownTarget === mapCanvas && e.target === mapCanvas) {
       handleMapClick(e.clientX, e.clientY);
     }
   }
+  pointerDownTarget = null;
 });
 
 stage.addEventListener("touchstart", (e) => {
+  if (e.target !== mapCanvas) return;
   if (e.touches.length === 1) {
     view.isDragging = true;
     view.dragStartX = e.touches[0].clientX;
     view.dragStartY = e.touches[0].clientY;
     pointerDownPos = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    pointerDownTarget = e.target;
     view.initialPanX = view.panX;
     view.initialPanY = view.panY;
   } else if (e.touches.length === 2) {
@@ -1610,12 +1615,13 @@ stage.addEventListener("touchend", (e) => {
   if (view.isDragging && e.changedTouches.length > 0) {
     const touch = e.changedTouches[0];
     const dist = Math.hypot(touch.clientX - pointerDownPos.x, touch.clientY - pointerDownPos.y);
-    if (dist < 6) {
+    if (dist < 6 && pointerDownTarget === mapCanvas && e.target === mapCanvas) {
       handleMapClick(touch.clientX, touch.clientY);
     }
   }
   view.isDragging = false;
   view.lastPinchDist = 0;
+  pointerDownTarget = null;
 });
 
 function updateOpBadge() {
@@ -1770,7 +1776,7 @@ function buildDensityGrid() {
 function findClosestStation(clientX, clientY) {
   if (!userSettings.showCities) return null;
   // Require zooming in before allowing station timetable selection to prevent accidental taps on country overview
-  if (view.zoom < 1.6) return null;
+  if (view.zoom < 2.2) return null;
 
   const rect = mapCanvas.getBoundingClientRect();
   const mx = clientX - rect.left;
@@ -2600,11 +2606,18 @@ function handleMapClick(clientX, clientY) {
 }
 
 stage.addEventListener("mousemove", (e) => {
-  handlePointerMove(e.clientX, e.clientY);
+  if (e.target === mapCanvas) {
+    handlePointerMove(e.clientX, e.clientY);
+  } else {
+    hoveredTrip = null;
+    if (!trackedTrip) {
+      tooltip.setAttribute("data-on", "false");
+    }
+  }
 });
 
 stage.addEventListener("touchstart", (e) => {
-  if (e.touches.length === 1) {
+  if (e.target === mapCanvas && e.touches.length === 1) {
     handlePointerMove(e.touches[0].clientX, e.touches[0].clientY);
   }
 }, { passive: true });
