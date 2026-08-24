@@ -410,16 +410,7 @@
   .lg[data-active="false"] { opacity: 0.35; }
   .lg[data-active="false"] .nm { text-decoration: line-through; }
   .lg .sw {
-    width: 9px; height: 9px; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
-  }
-  .lg .sw.sw-circle { border-radius: 50%; }
-  .lg .sw.sw-square { border-radius: 1px; }
-  .lg .sw.sw-triangle {
-    width: 0; height: 0;
-    background: transparent !important;
-    border-left: 4.5px solid transparent;
-    border-right: 4.5px solid transparent;
-    border-bottom: 8px solid;
+    width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex-shrink: 0;
   }
   .lg .nm {
     flex: 1; margin-left: 5px; color: inherit; font-size: 0.73rem;
@@ -855,10 +846,10 @@
     <div class="ctl-actions">
       <button id="play" aria-pressed="true">Pause</button>
       <div class="spd" role="group" aria-label="Playback speed">
-        <button data-mps="120" aria-pressed="true">1&times;</button>
-        <button data-mps="240">2&times;</button>
-        <button data-mps="480">4&times;</button>
-        <button data-mps="960">8&times;</button>
+        <button data-mps="120">0,5&times;</button>
+        <button data-mps="240" aria-pressed="true">1&times;</button>
+        <button data-mps="480">2&times;</button>
+        <button data-mps="960">4&times;</button>
       </div>
       <button id="legend-toggle-btn" class="mobile-only-btn" title="Categories & Operators">Legend</button>
     </div>
@@ -967,10 +958,10 @@ function isOutsideSweden(lon, lat) {
 
 const CONFIG = {
   classes: {
-    highspeed: { label: "SJ Snabbtåg (X2000 / SJ 3000)", role: "highspeed", size: 0.55, trailSecs: 300, ring: 1.0 },
-    intercity: { label: "InterCity / Øresundståg", role: "intercity", size: 0.48, trailSecs: 360, ring: 0.8 },
-    regional:  { label: "Regional / Pågatågen / Mälartåg", role: "regional", size: 0.35, trailSecs: 225, ring: 0.2 },
-    night:     { label: "SJ / Vy Nattåg (Overnight)", role: "night", size: 0.50, trailSecs: 350, ring: 1.0 }
+    highspeed: { label: "SJ Snabbtåg (X2000 / SJ 3000)", role: "highspeed", size: 0.55, trailSecs: 300, ring: 0 },
+    intercity: { label: "InterCity / Øresundståg", role: "intercity", size: 0.48, trailSecs: 360, ring: 0 },
+    regional:  { label: "Regional / Pågatågen / Mälartåg", role: "regional", size: 0.35, trailSecs: 225, ring: 0 },
+    night:     { label: "SJ / Vy Nattåg (Overnight)", role: "night", size: 0.50, trailSecs: 350, ring: 0 }
   },
   bounds: {
     lon0: 10.4, lon1: 24.4,
@@ -1218,13 +1209,16 @@ const activeOperators = new Set();
 let availableOperators = [];
 let isPlaying = true;
 let simSeconds = 28800; // start at 08:00
-let speedMultiplier = 120; // 1x = 2 min/sec
+let speedMultiplier = 240; // 1x standard = 4 min/sec
 let lastFrameTime = performance.now();
 let hourlyHistogram = new Array(24).fill(0);
 
 // Active hovered or locked tracking train
 let hoveredTrip = null;
 let trackedTrip = null;
+let displaySpeed = 0;
+let displayedIntSpeed = 0;
+let lastTrackedTripId = null;
 
 // Interactive Viewport Transform (Pan & Zoom)
 let view = {
@@ -1707,15 +1701,8 @@ function initUI() {
     row.setAttribute("tabindex", "0");
     row.title = "Click to toggle category";
 
-    let swHtml = `<span class="sw sw-circle" style="background:${PAL.hex[c.role]}"></span>`;
-    if (k === "highspeed") {
-      swHtml = `<span class="sw sw-triangle" style="border-bottom-color:${PAL.hex[c.role]}"></span>`;
-    } else if (k === "intercity") {
-      swHtml = `<span class="sw sw-square" style="background:${PAL.hex[c.role]}"></span>`;
-    }
-
     row.innerHTML = `
-      ${swHtml}
+      <span class="sw" style="background:${PAL.hex[c.role]}"></span>
       <span class="nm">${c.label}</span>
       <span class="ct" id="cnt-${k}">0</span>
     `;
@@ -2166,18 +2153,16 @@ function getTrainState(trip, tNow) {
   }
 
   let speedKmh = 0;
-  if (head.idx < pts.length - 1) {
-    const pA = pts[head.idx];
-    const pB = pts[head.idx + 1];
-    const dt = pB[2] - pA[2];
-    if (dt > 0) {
-      const meanLat = ((pA[1] + pB[1]) / 2) * (Math.PI / 180);
-      const dx = (pB[0] - pA[0]) * 111.32 * Math.cos(meanLat);
-      const dy = (pB[1] - pA[1]) * 110.57;
+  const p0 = getPointAtTime(pts, Math.max(t0, tNow - 25));
+  const p1 = getPointAtTime(pts, Math.min(t1, tNow + 25));
+  if (p0 && p1) {
+    const dt = Math.min(t1, tNow + 25) - Math.max(t0, tNow - 25);
+    if (dt >= 10) {
+      const meanLat = ((p0.lat + p1.lat) / 2.0) * (Math.PI / 180.0);
+      const dx = (p1.lon - p0.lon) * 111.32 * Math.cos(meanLat);
+      const dy = (p1.lat - p0.lat) * 110.57;
       const distKm = Math.hypot(dx, dy);
-      if (distKm > 0.03) {
-        speedKmh = Math.min(300, Math.round(distKm / (dt / 3600)));
-      }
+      speedKmh = distKm / (dt / 3600.0);
     }
   }
 
@@ -2499,72 +2484,49 @@ function render(now) {
         }
       }
 
-      // Draw train head icon (Triangle for High-speed, Cube/Square for InterCity, Circle for Regional & Night)
+      // Draw train head circular dot (Snabbtåg size 0.55 & InterCity size 0.48 are larger than Regional size 0.35)
       const rad = Math.min(7, 2.6 * conf.size * Math.pow(view.zoom, 0.35) * scaleFactor * (isTracked ? 1.4 : 1.0));
+      mapCtx.beginPath();
+      mapCtx.arc(headPos.x, headPos.y, rad, 0, Math.PI * 2);
+      mapCtx.fillStyle = css(rgbColor);
+      mapCtx.fill();
 
-      if (cls === "highspeed") {
-        mapCtx.save();
-        mapCtx.translate(headPos.x, headPos.y);
-        if (hasAngle) mapCtx.rotate(angle);
-        const r = rad * 1.35;
+      // Outer accent ring ONLY for actively tracked train
+      if (isTracked) {
         mapCtx.beginPath();
-        if (hasAngle) {
-          mapCtx.moveTo(r * 1.3, 0);
-          mapCtx.lineTo(-r * 0.8, -r * 0.85);
-          mapCtx.lineTo(-r * 0.4, 0);
-          mapCtx.lineTo(-r * 0.8, r * 0.85);
-        } else {
-          mapCtx.moveTo(0, -r * 1.2);
-          mapCtx.lineTo(r, r * 0.8);
-          mapCtx.lineTo(-r, r * 0.8);
-        }
-        mapCtx.closePath();
-        mapCtx.fillStyle = css(rgbColor);
-        mapCtx.fill();
-        if (isTracked) {
-          mapCtx.strokeStyle = rgba(rgbColor, currentTheme === "dark" ? 0.9 : 1.0);
-          mapCtx.lineWidth = 1.6;
-          mapCtx.stroke();
-        }
-        mapCtx.restore();
-      } else if (cls === "intercity") {
-        const size = rad * 1.8;
-        mapCtx.save();
-        mapCtx.translate(headPos.x, headPos.y);
-        if (hasAngle) mapCtx.rotate(angle);
-        mapCtx.beginPath();
-        mapCtx.rect(-size / 2, -size / 2, size, size);
-        mapCtx.fillStyle = css(rgbColor);
-        mapCtx.fill();
-        if (isTracked) {
-          mapCtx.strokeStyle = rgba(rgbColor, currentTheme === "dark" ? 0.9 : 1.0);
-          mapCtx.lineWidth = 1.5;
-          mapCtx.stroke();
-        }
-        mapCtx.restore();
-      } else {
-        mapCtx.beginPath();
-        mapCtx.arc(headPos.x, headPos.y, rad, 0, Math.PI * 2);
-        mapCtx.fillStyle = css(rgbColor);
-        mapCtx.fill();
-
-        if (conf.ring > 0.5 || isTracked) {
-          mapCtx.beginPath();
-          mapCtx.arc(headPos.x, headPos.y, rad + (isTracked ? 2.6 : 1.8) * scaleFactor, 0, Math.PI * 2);
-          mapCtx.strokeStyle = rgba(rgbColor, currentTheme === "dark" ? 0.7 : 0.9);
-          mapCtx.lineWidth = isTracked ? 1.4 : 0.9;
-          mapCtx.stroke();
-        }
+        mapCtx.arc(headPos.x, headPos.y, rad + 2.6 * scaleFactor, 0, Math.PI * 2);
+        mapCtx.strokeStyle = rgba(rgbColor, currentTheme === "dark" ? 0.8 : 0.95);
+        mapCtx.lineWidth = 1.6;
+        mapCtx.stroke();
       }
     });
   }
 
   if (trackedTrainHead) {
-    updateTooltipContent(trackedTrainHead.trip, trackedTrainHead.pos, trackedTrainHead.speedKmh);
-    const spdStr = (trackedTrainHead.speedKmh !== undefined && trackedTrainHead.speedKmh > 0) 
-      ? ` • ${trackedTrainHead.speedKmh} km/h` 
+    if (lastTrackedTripId !== trackedTrainHead.trip.id) {
+      displaySpeed = trackedTrainHead.speedKmh;
+      displayedIntSpeed = Math.round(displaySpeed);
+      lastTrackedTripId = trackedTrainHead.trip.id;
+    } else {
+      // Exponential smoothing rate
+      displaySpeed += (trackedTrainHead.speedKmh - displaySpeed) * 0.05;
+      // Hysteresis deadband: only update integer display when moving significantly (>= 0.65 km/h)
+      if (Math.abs(displaySpeed - displayedIntSpeed) >= 0.65) {
+        displayedIntSpeed = Math.round(displaySpeed);
+      }
+    }
+    const finalSpd = (displayedIntSpeed > 5) ? displayedIntSpeed : 0;
+    updateTooltipContent(trackedTrainHead.trip, trackedTrainHead.pos, finalSpd);
+    const spdStr = (finalSpd > 0) 
+      ? ` • ${finalSpd} km/h` 
       : " • At Station";
-    trackingBadge.querySelector("span").textContent = `${trackedTrainHead.trip.id}${spdStr}`;
+    const badgeSpan = trackingBadge.querySelector("span");
+    const targetBadgeText = `${trackedTrainHead.trip.id}${spdStr}`;
+    if (badgeSpan && badgeSpan.textContent !== targetBadgeText) {
+      badgeSpan.textContent = targetBadgeText;
+    }
+  } else {
+    lastTrackedTripId = null;
   }
 
   const runningStr = `${totalActive} trains running`;
@@ -2592,7 +2554,11 @@ function updateTooltipContent(trip, pos, speedKmh) {
   tooltip.querySelector(".tn").textContent = trip.id;
   const spdEl = tooltip.querySelector(".spd-badge");
   if (spdEl) {
-    spdEl.textContent = (speedKmh !== undefined && speedKmh > 0) ? `${speedKmh} km/h` : "At Station";
+    const spdInt = Math.round(speedKmh);
+    const spdText = (spdInt > 0) ? `${spdInt} km/h` : "At Station";
+    if (spdEl.textContent !== spdText) {
+      spdEl.textContent = spdText;
+    }
   }
 
   const routeEl = tooltip.querySelector(".route");

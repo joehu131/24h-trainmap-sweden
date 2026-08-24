@@ -11,6 +11,7 @@ venv/
 data/*.zip
 data/osm/
 data/*-osm.json
+data/*-compact.json
 archived-data/
 
 # IDE & OS

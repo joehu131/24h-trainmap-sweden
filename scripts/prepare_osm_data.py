@@ -20,6 +20,14 @@ with open(OSM_RAW_PATH, 'r', encoding='utf-8') as f:
 
 print(f"Loaded {len(osm_elements)} OSM raw railway ways.")
 
+# Geodesic metric distance helper (accurate for Sweden's 55-69°N latitude)
+def geo_dist_km(p1, p2):
+    """Calculates true geodesic metric distance in kilometers between (lon1, lat1) and (lon2, lat2)."""
+    mean_lat = ((p1[1] + p2[1]) / 2.0) * (math.pi / 180.0)
+    dx = (p2[0] - p1[0]) * 111.32 * math.cos(mean_lat)
+    dy = (p2[1] - p1[1]) * 110.57
+    return math.hypot(dx, dy)
+
 # 2. Build spatial topological network graph from OSM
 fine_graph = defaultdict(dict)
 for elem in osm_elements:
@@ -30,7 +38,7 @@ for elem in osm_elements:
     for i in range(len(line) - 1):
         u, v = line[i], line[i+1]
         if u != v:
-            d = math.hypot(v[0] - u[0], v[1] - u[1])
+            d = geo_dist_km(u, v)
             if v not in fine_graph[u] or d < fine_graph[u][v]:
                 fine_graph[u][v] = d
             if u not in fine_graph[v] or d < fine_graph[v][u]:
@@ -53,11 +61,12 @@ for (bx, by), b_nodes in buckets.items():
         n1 = b_nodes[i]
         for n2 in cands:
             if n1 < n2:
-                d = math.hypot(n2[0] - n1[0], n2[1] - n1[1])
-                if 0 < d <= 0.0008:
+                d_deg = math.hypot(n2[0] - n1[0], n2[1] - n1[1])
+                if 0 < d_deg <= 0.0008:
+                    d_km = geo_dist_km(n1, n2)
                     if n2 not in fine_graph[n1]:
-                        fine_graph[n1][n2] = d
-                        fine_graph[n2][n1] = d
+                        fine_graph[n1][n2] = d_km
+                        fine_graph[n2][n1] = d_km
                         added_switches += 1
 
 print(f"Base fine graph: {len(nodes)} nodes. Added {added_switches} switch connections.")
@@ -131,14 +140,14 @@ def route_osm_track(p1, p2):
     if not n1 or not n2 or n1 == n2:
         return [p1, p2]
         
-    straight_d = math.hypot(p2[0] - p1[0], p2[1] - p1[1])
+    straight_d = geo_dist_km(p1, p2)
     pq = [(straight_d, 0.0, n1, [n1])]
     visited = {}
     
     while pq:
         est, cost, curr, path = heapq.heappop(pq)
         if curr == n2:
-            if cost > 2.5 * straight_d and straight_d > 0.15:
+            if cost > 2.5 * straight_d and straight_d > 15.0:
                 return [p1, p2]
             full_geom = [p1]
             for i in range(len(path) - 1):
@@ -158,7 +167,7 @@ def route_osm_track(p1, p2):
         for neighbor, (weight, _) in junction_graph[curr].items():
             new_cost = cost + weight
             if neighbor not in visited or new_cost < visited[neighbor]:
-                h = math.hypot(n2[0] - neighbor[0], n2[1] - neighbor[1])
+                h = geo_dist_km(n2, neighbor)
                 heapq.heappush(pq, (new_cost + h, new_cost, neighbor, path + [neighbor]))
                 
     return [p1, p2]
@@ -435,7 +444,7 @@ with zipfile.ZipFile(ZIP_PATH, 'r') as z:
 
                 cum_dists = [0.0]
                 for k in range(len(segment) - 1):
-                    d = math.hypot(segment[k+1][0] - segment[k][0], segment[k+1][1] - segment[k][1])
+                    d = geo_dist_km(segment[k], segment[k+1])
                     cum_dists.append(cum_dists[-1] + d)
                 total_d = cum_dists[-1]
 
@@ -450,11 +459,12 @@ with zipfile.ZipFile(ZIP_PATH, 'r') as z:
                 raw_pts.append([round(last_lon, 4), round(last_lat, 4), int(last_t)])
 
             if len(raw_pts) >= 2:
-                # Option B points: 200m downsampling
+                # Option B points: 200m downsampling using true metric distance
                 pts_b = [raw_pts[0]]
                 for pt in raw_pts[1:-1]:
                     prev = pts_b[-1]
-                    if (pt[2] - prev[2] >= 20) or math.hypot(pt[0] - prev[0], pt[1] - prev[1]) >= 0.002:
+                    dist_km = geo_dist_km((prev[0], prev[1]), (pt[0], pt[1]))
+                    if (pt[2] - prev[2] >= 20) or dist_km >= 0.20:
                         pts_b.append(pt)
                 pts_b.append(raw_pts[-1])
 
@@ -489,13 +499,18 @@ with zipfile.ZipFile(ZIP_PATH, 'r') as z:
                 
                 all_weekly_corridors.append([(p[0], p[1]) for p in pts_b])
 
-        # Save Option B
+        # Save Standard Dataset & Option B
         out_b = {
             "date": formatted_date,
             "weekday": weekday_name,
             "counts": category_counts,
             "trips": trips_out_b
         }
+        out_fname_std = f"sweden-trains-{short_name}.json"
+        out_fpath_std = os.path.join(DATA_DIR, out_fname_std)
+        with open(out_fpath_std, 'w', encoding='utf-8') as f:
+            json.dump(out_b, f, separators=(',', ':'))
+
         out_fname_b = f"sweden-trains-{short_name}-osm.json"
         out_fpath_b = os.path.join(DATA_DIR, out_fname_b)
         with open(out_fpath_b, 'w', encoding='utf-8') as f:
