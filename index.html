@@ -154,11 +154,18 @@
     color: var(--ink-3); font-family: "IBM Plex Mono", monospace;
   }
 
-  /* Top-right actions: Theme toggle + Figures button */
+  /* Top-right actions: Info + Theme toggle + Figures button */
   #top-right {
     position: fixed; z-index: 4; right: 20px; top: 18px;
     display: flex; align-items: center; gap: 8px;
   }
+  #info-btn {
+    width: 28px; height: 28px; padding: 0;
+    display: inline-flex; align-items: center; justify-content: center;
+    color: var(--ink-2);
+  }
+  #info-btn:hover { color: var(--ink); }
+  #info-btn svg { display: block; }
   #theme-toggle {
     display: inline-flex; align-items: center; gap: 5px; font-size: 0.76rem;
   }
@@ -198,13 +205,18 @@
     font-size: 0.76rem; font-weight: 600; letter-spacing: 0.06em;
     text-transform: uppercase; color: var(--ink); margin: 0;
   }
-  #settings-close, #op-modal-close {
+  #settings-close, #op-modal-close, #st-modal-close, #info-close {
     background: transparent; border: 0; color: var(--ink-3); font-size: 1.1rem;
     line-height: 1; padding: 2px 4px; cursor: pointer; border-radius: 4px;
   }
-  #settings-close:hover, #op-modal-close:hover { color: var(--ink); background: rgba(128, 128, 128, 0.15); }
+  #settings-close:hover, #op-modal-close:hover, #st-modal-close:hover, #info-close:hover {
+    color: var(--ink); background: rgba(128, 128, 128, 0.15);
+  }
 
-  /* Operator Filter Modal */
+  /* Modals Common & Operator Filter Modal */
+  #operator-modal, #info-modal, #station-modal, #settings-modal, #legend-modal, #figures {
+    cursor: default;
+  }
   #operator-modal {
     position: fixed; z-index: 8; inset: 0;
     display: none; place-items: center;
@@ -212,6 +224,11 @@
     backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
   }
   #operator-modal[data-open="true"] { display: grid; }
+  .modal-card, .figures-card, #figures, .settings-card, .info-card {
+    cursor: default;
+    user-select: text;
+    -webkit-user-select: text;
+  }
   .modal-card {
     width: 340px; max-width: 90vw; max-height: 80vh;
     display: flex; flex-direction: column;
@@ -467,7 +484,46 @@
     background: var(--ink); cursor: ew-resize;
     box-shadow: 0 0 6px rgba(0,0,0,0.5), inset 0 0 0 4px var(--panel);
   }
-  #scrub:focus-visible { outline: 1px solid var(--ink-3); outline-offset: 2px; }
+  /* Info / Welcome Modal */
+  #info-modal {
+    position: fixed; z-index: 9; inset: 0;
+    display: none; place-items: center;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+    padding: 16px;
+  }
+  #info-modal[data-open="true"] { display: grid; }
+  .info-card {
+    width: 440px; max-width: 92vw;
+    padding: 18px 20px;
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+  }
+  .info-lead {
+    font-size: 0.82rem; line-height: 1.45; color: var(--ink); margin: 0 0 12px 0;
+    user-select: text; -webkit-user-select: text; cursor: text;
+  }
+  .info-features {
+    list-style: none; padding: 0; margin: 0 0 16px 0;
+    display: flex; flex-direction: column; gap: 8px;
+    user-select: text; -webkit-user-select: text;
+  }
+  .info-features li {
+    font-size: 0.76rem; line-height: 1.4; color: var(--ink-2);
+    position: relative; padding-left: 14px;
+    user-select: text; -webkit-user-select: text; cursor: text;
+  }
+  .info-features li::before {
+    content: "•"; position: absolute; left: 0; color: var(--ink-3); font-weight: bold;
+  }
+  .info-features li strong {
+    color: var(--ink); font-weight: 600;
+  }
+  .info-primary-btn {
+    width: 100%; padding: 8px 16px; font-size: 0.80rem; font-weight: 500;
+    background: var(--ink); color: var(--panel); border: 0; border-radius: 6px;
+    cursor: pointer; transition: opacity 0.15s ease;
+  }
+  .info-primary-btn:hover { opacity: 0.9; }
 
   #figures {
     position: fixed; z-index: 7; right: 20px; top: 60px;
@@ -562,6 +618,10 @@
     }
     #top-right button {
       padding: 5px 9px; font-size: 0.70rem; min-height: 28px;
+    }
+    #info-btn {
+      width: 28px !important; min-width: 28px !important; padding: 0 !important;
+      display: inline-flex; align-items: center; justify-content: center;
     }
 
     /* Zoom & Settings floating controls */
@@ -678,6 +738,25 @@
       padding: 16px 16px calc(16px + env(safe-area-inset-bottom)) !important;
       max-height: 85svh !important; overflow-y: auto;
     }
+    /* Info Modal on Mobile */
+    #info-modal {
+      position: fixed; z-index: 9; inset: 0;
+      background: rgba(0, 0, 0, 0.65);
+      backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+      display: none; align-items: center; justify-content: center;
+      padding: 16px;
+    }
+    #info-modal[data-open="true"] { display: flex; }
+    #info-modal .info-card {
+      width: 100% !important; max-width: 360px !important;
+      border-radius: 14px !important;
+      padding: 16px !important;
+      max-height: 85svh !important;
+      overflow-y: auto;
+      display: block !important;
+      position: static !important;
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6) !important;
+    }
     #figures-close { display: block; }
   }
 </style>
@@ -715,6 +794,13 @@
   </div>
 
   <div id="top-right">
+    <button id="info-btn" class="panel" aria-label="About this map" title="About this map">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"></circle>
+        <line x1="12" y1="16" x2="12" y2="12"></line>
+        <line x1="12" y1="8" x2="12.01" y2="8"></line>
+      </svg>
+    </button>
     <button id="theme-toggle" class="panel" aria-label="Toggle theme">
       <span id="theme-label">Light</span>
     </button>
@@ -813,6 +899,25 @@
         <button id="st-tab-arr" class="st-tab">Arrivals</button>
       </div>
       <div id="st-board-list" class="st-board-list"></div>
+    </div>
+  </div>
+
+  <div id="info-modal" data-open="false">
+    <div class="panel modal-card info-card">
+      <div class="modal-hdr">
+        <h2>About All Trains In A Day</h2>
+        <button id="info-close" aria-label="Close information">&times;</button>
+      </div>
+      <div class="modal-body info-body">
+        <p class="info-lead">A 24-hour interactive visualization of Swedish passenger rail traffic across the national railway network.</p>
+        <ul class="info-features">
+          <li><strong>3,300+ daily trains</strong> simulated along real OpenStreetMap tracks and 7-day Swedish GTFS timetables.</li>
+          <li><strong>24h Timeline:</strong> Scrub the bottom timeline to explore rush hours, daytime intercity traffic, and overnight sleeper trains.</li>
+          <li><strong>Real-time Tracking:</strong> Click any moving train to track its speed, operator, and full journey.</li>
+          <li><strong>Station Timetables:</strong> Zoom into cities (zoom &ge; 3.2&times; on mobile) to inspect live departures and arrivals boards.</li>
+        </ul>
+        <button id="info-got-it" class="info-primary-btn">Explore the Map</button>
+      </div>
     </div>
   </div>
 
@@ -1179,6 +1284,11 @@ const stBoardList = document.getElementById("st-board-list");
 const stName = document.getElementById("st-name");
 const stTime = document.getElementById("st-time");
 
+const infoBtn = document.getElementById("info-btn");
+const infoModal = document.getElementById("info-modal");
+const infoClose = document.getElementById("info-close");
+const infoGotIt = document.getElementById("info-got-it");
+
 let selectedStation = null;
 let currentStationTab = "dep"; // "dep" or "arr"
 let densityGrid = null;
@@ -1246,7 +1356,7 @@ let proj = {
 };
 
 // Stop Drag/Zoom Bubbling on UI panels & inputs
-[settingsModal, stationModal, operatorModal, legendModal, zoomControls, controlsPanel, topBar, legendPanel, figuresEl].forEach(panel => {
+[settingsModal, stationModal, operatorModal, legendModal, infoModal, zoomControls, controlsPanel, topBar, legendPanel, figuresEl].forEach(panel => {
   if (!panel) return;
   panel.addEventListener("mousedown", (e) => e.stopPropagation());
   panel.addEventListener("touchstart", (e) => e.stopPropagation(), { passive: true });
@@ -1781,7 +1891,7 @@ function findClosestStation(clientX, clientY) {
   if (!userSettings.showCities) return null;
   const isMobile = window.innerWidth <= 820;
   // On mobile devices, require zooming in before allowing station selection to prevent accidental taps
-  if (isMobile && view.zoom < 3.2) return null;
+  if (isMobile && view.zoom < 2.0) return null;
 
   const rect = mapCanvas.getBoundingClientRect();
   const mx = clientX - rect.left;
@@ -1791,8 +1901,14 @@ function findClosestStation(clientX, clientY) {
   let minD = isMobile ? 24 : 16;
 
   CONFIG.cities.forEach(([name, lat, lon, tier]) => {
-    if (tier === 2 && view.zoom < (isMobile ? 3.2 : 1.8)) return;
-    if (tier === 3 && view.zoom < 3.2) return;
+    if (isMobile) {
+      if (tier === 1 && view.zoom < 1.45) return;
+      if (tier === 2 && view.zoom < 2.6) return;
+      if (tier === 3 && view.zoom < 4.2) return;
+    } else {
+      if (tier === 2 && view.zoom < 1.6) return;
+      if (tier === 3 && view.zoom < 3.2) return;
+    }
 
     const p = project(lon, lat);
     const d = Math.hypot(p.x - mx, p.y - my);
@@ -2339,9 +2455,26 @@ function renderStaticBackground() {
   // 5. Draw City Station Nodes & Text Labels
   if (userSettings.showCities) {
     const z = view.zoom;
+    const isMobile = window.innerWidth <= 820;
+
     CONFIG.cities.forEach(([name, lat, lon, tier]) => {
-      if (tier === 2 && z < 1.6) return;
-      if (tier === 3 && z < 3.2) return;
+      // Station Node Visibility:
+      // Mobile:
+      //   Tier 1 (Largest cities): hidden at start zoom (z=1.0), visible at z >= 1.45
+      //   Tier 2 (Medium cities): visible at z >= 2.6
+      //   Tier 3 (Smaller cities): visible at z >= 4.2
+      // Desktop:
+      //   Tier 1: always visible
+      //   Tier 2: visible at z >= 1.6
+      //   Tier 3: visible at z >= 3.2
+      if (isMobile) {
+        if (tier === 1 && z < 1.45) return;
+        if (tier === 2 && z < 2.6) return;
+        if (tier === 3 && z < 4.2) return;
+      } else {
+        if (tier === 2 && z < 1.6) return;
+        if (tier === 3 && z < 3.2) return;
+      }
 
       const p = project(lon, lat);
       
@@ -2355,7 +2488,12 @@ function renderStaticBackground() {
       bgCtx.fillStyle = tier === 1 ? PAL.hex.station : (tier === 2 ? rgba(PAL.rgb.station, 0.8) : rgba(PAL.rgb.ink3, 0.5));
       bgCtx.fill();
 
-      if (tier === 1 || (tier === 2 && z > 1.8) || (tier === 3 && z > 3.4)) {
+      // Text Label Visibility:
+      const showLabel = isMobile
+        ? ((tier === 1 && z >= 1.55) || (tier === 2 && z >= 2.8) || (tier === 3 && z >= 4.4))
+        : (tier === 1 || (tier === 2 && z > 1.8) || (tier === 3 && z > 3.4));
+
+      if (showLabel) {
         let baseFontSize = 10;
         if (tier === 1) baseFontSize = 10.0;
         else if (tier === 2) baseFontSize = 9.0;
@@ -2686,6 +2824,7 @@ window.addEventListener("keydown", (e) => {
     stationModal.setAttribute("data-open", "false");
     operatorModal.setAttribute("data-open", "false");
     if (legendModal) legendModal.setAttribute("data-open", "false");
+    if (infoModal) infoModal.setAttribute("data-open", "false");
     if (figuresEl) {
       figuresEl.setAttribute("data-open", "false");
       figBtn.setAttribute("aria-expanded", "false");
@@ -2757,8 +2896,43 @@ figBtn.addEventListener("click", () => {
   figBtn.setAttribute("aria-expanded", isOpen ? "false" : "true");
 });
 
+function closeInfoModal() {
+  if (!infoModal) return;
+  infoModal.setAttribute("data-open", "false");
+  try {
+    localStorage.setItem("rail_intro_seen", "true");
+  } catch (_) {}
+}
+
+function checkFirstVisit() {
+  try {
+    const seen = localStorage.getItem("rail_intro_seen");
+    if (seen !== "true" && infoModal) {
+      infoModal.setAttribute("data-open", "true");
+    }
+  } catch (_) {}
+}
+
+if (infoBtn) {
+  infoBtn.addEventListener("click", () => {
+    if (infoModal) infoModal.setAttribute("data-open", "true");
+  });
+}
+if (infoClose) {
+  infoClose.addEventListener("click", closeInfoModal);
+}
+if (infoGotIt) {
+  infoGotIt.addEventListener("click", closeInfoModal);
+}
+if (infoModal) {
+  infoModal.addEventListener("click", (e) => {
+    if (e.target === infoModal) closeInfoModal();
+  });
+}
+
 async function init() {
   updateProjection();
+  checkFirstVisit();
   try {
     geoData = await fetchJson("data/sweden-geo.json");
     trainData = await fetchJson("data/sweden-trains-wed.json");

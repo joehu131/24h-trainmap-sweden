@@ -2,6 +2,10 @@
 
 An interactive 24-hour visualization of passenger train movements across Sweden. Built with vanilla HTML5 Canvas and JavaScript without external runtime dependencies.
 
+<p align="center">
+  <img src="data/images/trainmap24swe.png" alt="All Trains in a Day: Sweden" width="680" style="max-width: 100%; border-radius: 8px;">
+</p>
+
 ## System Architecture
 
 ```
