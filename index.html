@@ -369,6 +369,18 @@
   .setting-row input[type="checkbox"] {
     accent-color: var(--highspeed); cursor: pointer; width: 14px; height: 14px;
   }
+  .settings-footer {
+    display: flex; justify-content: flex-end; margin-top: 6px; padding-top: 8px;
+    border-top: 1px solid var(--rule);
+  }
+  .settings-reset-btn {
+    font-size: 0.68rem; color: var(--ink-3); border: 1px solid var(--rule);
+    padding: 3px 8px; border-radius: 4px; background: transparent; cursor: pointer;
+    transition: all 0.12s ease;
+  }
+  .settings-reset-btn:hover {
+    color: var(--ink); border-color: var(--ink-3); background: rgba(128, 128, 128, 0.12);
+  }
 
   /* Center Map Clock in Lapland */
   header#clock-hdr {
@@ -866,6 +878,9 @@
             <span id="urban-val" class="val-lbl">40%</span>
           </div>
         </div>
+        <div class="settings-footer">
+          <button id="settings-reset-btn" class="mini-btn settings-reset-btn" title="Reset display settings to defaults">Reset to Defaults</button>
+        </div>
       </div>
     </div>
   </div>
@@ -977,10 +992,7 @@
 (() => {
 "use strict";
 
-let currentTheme = localStorage.getItem("rail_theme") || "dark";
-document.documentElement.setAttribute("data-theme", currentTheme);
-
-const userSettings = {
+const DEFAULT_SETTINGS = {
   trackOpacity: 50,
   trainScale: 1.0,
   trailScale: 1.0,
@@ -990,22 +1002,37 @@ const userSettings = {
   showDensity: false
 };
 
-try {
-  const saved = JSON.parse(localStorage.getItem("rail_settings") || "{}");
-  if (saved && typeof saved === "object") {
-    if (typeof saved.trackOpacity === "number") userSettings.trackOpacity = Math.max(0, Math.min(100, saved.trackOpacity));
-    if (typeof saved.trainScale === "number") userSettings.trainScale = Math.max(0.5, Math.min(2.5, saved.trainScale));
-    if (typeof saved.trailScale === "number") userSettings.trailScale = Math.max(0.4, Math.min(2.0, saved.trailScale));
-    if (typeof saved.showCities === "boolean") userSettings.showCities = saved.showCities;
-    if (typeof saved.showFootprints === "boolean") {
-      userSettings.showFootprints = saved.showFootprints;
-    } else if (saved.urbanStyle !== undefined) {
-      userSettings.showFootprints = saved.urbanStyle !== "none";
+function loadSettings() {
+  const settings = { ...DEFAULT_SETTINGS };
+  try {
+    const saved = JSON.parse(localStorage.getItem("rail_settings") || "{}");
+    if (saved && typeof saved === "object") {
+      if (typeof saved.trackOpacity === "number") settings.trackOpacity = Math.max(0, Math.min(100, saved.trackOpacity));
+      if (typeof saved.trainScale === "number") settings.trainScale = Math.max(0.5, Math.min(2.5, saved.trainScale));
+      if (typeof saved.trailScale === "number") settings.trailScale = Math.max(0.4, Math.min(2.0, saved.trailScale));
+      if (typeof saved.showCities === "boolean") settings.showCities = Boolean(saved.showCities);
+      if (typeof saved.showFootprints === "boolean") {
+        settings.showFootprints = saved.showFootprints;
+      } else if (saved.urbanStyle !== undefined) {
+        settings.showFootprints = saved.urbanStyle !== "none";
+      }
+      if (typeof saved.urbanOpacity === "number") settings.urbanOpacity = Math.max(10, Math.min(100, saved.urbanOpacity));
+      if (typeof saved.showDensity === "boolean") settings.showDensity = Boolean(saved.showDensity);
     }
-    if (typeof saved.urbanOpacity === "number") userSettings.urbanOpacity = Math.max(10, Math.min(100, saved.urbanOpacity));
-    if (typeof saved.showDensity === "boolean") userSettings.showDensity = saved.showDensity;
+  } catch (_) {}
+  return settings;
+}
+
+let currentTheme = "dark";
+try {
+  const savedTheme = localStorage.getItem("rail_theme");
+  if (savedTheme === "light" || savedTheme === "dark") {
+    currentTheme = savedTheme;
   }
-} catch(e) {}
+} catch (_) {}
+document.documentElement.setAttribute("data-theme", currentTheme);
+
+const userSettings = loadSettings();
 
 const PALETTES = {
   dark: {
@@ -1314,12 +1341,43 @@ let geoData = null;
 let currentDay = "wed";
 const dayCache = {};
 
-const activeCategories = new Set(["highspeed", "intercity", "regional", "night"]);
+function loadCategories() {
+  const cats = new Set(["highspeed", "intercity", "regional", "night"]);
+  try {
+    const saved = JSON.parse(localStorage.getItem("rail_categories") || "null");
+    if (Array.isArray(saved) && saved.length > 0) {
+      const valid = saved.filter(k => CONFIG.classes[k]);
+      if (valid.length > 0) {
+        cats.clear();
+        valid.forEach(k => cats.add(k));
+      }
+    }
+  } catch (_) {}
+  return cats;
+}
+
+function saveCategories() {
+  try {
+    localStorage.setItem("rail_categories", JSON.stringify(Array.from(activeCategories)));
+  } catch (_) {}
+}
+
+function loadSpeedMultiplier() {
+  try {
+    const saved = parseInt(localStorage.getItem("rail_speed"), 10);
+    if ([120, 240, 480, 960].includes(saved)) {
+      return saved;
+    }
+  } catch (_) {}
+  return 240; // 1x standard default
+}
+
+const activeCategories = loadCategories();
 const activeOperators = new Set();
 let availableOperators = [];
 let isPlaying = true;
 let simSeconds = 28800; // start at 08:00
-let speedMultiplier = 240; // 1x standard = 4 min/sec
+let speedMultiplier = loadSpeedMultiplier();
 let lastFrameTime = performance.now();
 let hourlyHistogram = new Array(24).fill(0);
 
@@ -1527,6 +1585,16 @@ if (urbanOpacityInput) {
   urbanOpacityInput.addEventListener("input", (e) => {
     userSettings.urbanOpacity = parseInt(e.target.value, 10);
     urbanValLbl.textContent = `${userSettings.urbanOpacity}%`;
+    bgDirty = true;
+    saveSettings();
+  });
+}
+
+const settingsResetBtn = document.getElementById("settings-reset-btn");
+if (settingsResetBtn) {
+  settingsResetBtn.addEventListener("click", () => {
+    Object.assign(userSettings, DEFAULT_SETTINGS);
+    initSettingsUI();
     bgDirty = true;
     saveSettings();
   });
@@ -1826,6 +1894,7 @@ function initUI() {
       } else {
         activeCategories.add(k);
       }
+      saveCategories();
       document.querySelectorAll(".lg").forEach(el => {
         const catKey = el.getAttribute("data-cat");
         el.setAttribute("data-active", activeCategories.has(catKey) ? "true" : "false");
@@ -2824,7 +2893,7 @@ window.addEventListener("keydown", (e) => {
     stationModal.setAttribute("data-open", "false");
     operatorModal.setAttribute("data-open", "false");
     if (legendModal) legendModal.setAttribute("data-open", "false");
-    if (infoModal) infoModal.setAttribute("data-open", "false");
+    if (infoModal) closeInfoModal();
     if (figuresEl) {
       figuresEl.setAttribute("data-open", "false");
       figBtn.setAttribute("aria-expanded", "false");
@@ -2883,10 +2952,15 @@ scrub.addEventListener("input", (e) => {
 });
 
 spdBtns.forEach(btn => {
+  const mps = parseInt(btn.getAttribute("data-mps"), 10);
+  btn.setAttribute("aria-pressed", mps === speedMultiplier ? "true" : "false");
   btn.addEventListener("click", () => {
     spdBtns.forEach(b => b.setAttribute("aria-pressed", "false"));
     btn.setAttribute("aria-pressed", "true");
-    speedMultiplier = parseInt(btn.getAttribute("data-mps"), 10);
+    speedMultiplier = mps;
+    try {
+      localStorage.setItem("rail_speed", String(speedMultiplier));
+    } catch (_) {}
   });
 });
 
